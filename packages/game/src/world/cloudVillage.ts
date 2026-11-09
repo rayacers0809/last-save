@@ -1,9 +1,11 @@
 // 구름 위의 마을 (1막) 맵 데이터. P2에서 Tiled JSON으로 교체 예정.
 import type { CharId } from '../data/characters';
 
+import CLOUD from './mapdata/cloud.json';
 export const TILE = 24;
-export const COLS = 44;
-export const ROWS = 30;
+export const COLS: number = CLOUD.cols;
+export const ROWS: number = CLOUD.rows;
+const P = (k: string) => { const v = (CLOUD.pos as Record<string, number[]>)[k]; return { x: v[0], y: v[1] }; };
 
 /** 타일 코드
  *  ' ' 하늘(못 지나감)  . 구름 땅  = 돌길  # 벽  ^ 지붕  D 문  * 구름 덤불
@@ -21,41 +23,7 @@ export const BUILDINGS: Building[] = [
 ];
 
 export function buildGrid(): Tile[][] {
-  const g: Tile[][] = Array.from({ length: ROWS }, () => Array<Tile>(COLS).fill(' '));
-  const fill = (x0: number, y0: number, x1: number, y1: number, t: Tile) => {
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g[y][x] = t;
-  };
-  // 본섬
-  fill(2, 8, 32, 27, '.');
-  fill(2, 8, 4, 8, ' '); fill(30, 26, 32, 27, ' '); fill(2, 26, 3, 27, ' '); fill(31, 8, 32, 9, ' ');
-  // 북쪽 언덕과 바위 통로
-  fill(10, 2, 24, 6, '.'); fill(10, 2, 11, 2, ' '); fill(23, 2, 24, 2, ' ');
-  fill(16, 7, 17, 7, 'X');
-  // 동쪽 섬 (구름 걸음으로만)
-  fill(36, 11, 41, 17, '.'); fill(41, 11, 41, 11, ' '); fill(36, 17, 36, 17, ' ');
-  // 길
-  fill(3, 15, 32, 15, '='); fill(16, 8, 17, 26, '=');
-  fill(13, 3, 21, 3, '=');
-  // 건물
-  for (const b of BUILDINGS) { fill(b.x0, b.y0, b.x1, b.y0 + 1, '^'); fill(b.x0, b.y0 + 2, b.x1, b.y1, '#'); }
-  g[12][6] = 'D'; g[12][26] = 'D'; g[23][6] = 'D';
-  // 광장 소품
-  fill(12, 12, 13, 13, 'W');
-  fill(20, 10, 21, 11, 'T');
-  g[13][28] = 'B'; g[17][10] = 'M'; g[3][12] = 'C';
-  fill(23, 21, 26, 22, 'f');
-  // 북동쪽 작은 섬 (언덕에서 구름 걸음)
-  fill(28, 2, 31, 5, '.'); g[2][31] = ' ';
-  // 남동쪽 바위 구역 (돌진)
-  for (const [x, y] of [[29, 23], [31, 23], [32, 23], [29, 24], [29, 25], [32, 24], [32, 25]]) g[y][x] = '*';
-  g[23][30] = 'X';
-  // 하늘 정류장
-  g[27][16] = 'S'; g[27][17] = 'S';
-  // 덤불
-  for (const [x, y] of [[3, 13], [3, 18], [28, 24], [12, 25], [21, 25], [31, 19], [25, 17], [10, 5], [24, 5], [38, 16]]) g[y][x] = '*';
-  // 계단 (언덕 ↔ 광장, 광장 ↔ 남쪽 정류장)
-  g[3][16] = 'L'; g[3][17] = 'L'; g[26][16] = 'L'; g[26][17] = 'L';
-  return g;
+  return CLOUD.grid.map(row => [...row] as Tile[]);
 }
 
 /** 꾸밈 요소 (걸을 수 있는 칸 위에만 두지 않는다 — 덤불·지붕 등 막힌 칸이나 가장자리) */
@@ -71,51 +39,54 @@ export interface Spot { x: number; y: number } // 타일 좌표 (발 위치 타�
 
 /** 별지기 자리. 첫 접속자의 자리는 비워 둔다 */
 export const MEMBER_SPOTS: Record<CharId, Spot> = {
-  rumung: { x: 30, y: 13 },   // 동쪽 전망대
-  dodamhi: { x: 27, y: 14 },  // 도서관 게시판 앞
-  dotcha: { x: 8, y: 14 },    // 빵집 앞
-  ttuning: { x: 14, y: 4 },   // 북쪽 언덕 단말기 (돌진 필요)
-  bigwin: { x: 21, y: 13 },   // 시계탑 아래
-  haming: { x: 24, y: 24 },   // 시든 화단
-  darae: { x: 11, y: 18 },    // 지도판 앞
-  eune: { x: 11, y: 14 },     // 분수대 옆
-  shiro: { x: 39, y: 14 },    // 동쪽 섬 (구름 걸음 필요)
+  rumung: P('m_rumung'),     // 동쪽 전망대
+  dodamhi: P('m_dodamhi'),   // 게시판 앞
+  dotcha: P('m_dotcha'),     // 시장 앞
+  ttuning: P('m_ttuning'),   // 벚나무 섬 그네 (돌진 필요)
+  bigwin: P('m_bigwin'),     // 시계탑 앞
+  haming: P('m_haming'),     // 시든 화단
+  darae: P('m_darae'),       // 서점 앞
+  eune: P('m_eune'),         // 분수대 옆
+  shiro: P('m_shiro'),       // 서쪽 수정 섬 (구름 걸음 필요)
 };
 
-export const POINT_SPOT: Spot = { x: 19, y: 13 };
-export const START_SPOT: Spot = { x: 17, y: 17 };
+export const POINT_SPOT: Spot = { x: CLOUD.point[0], y: CLOUD.point[1] };
+export const START_SPOT: Spot = { x: CLOUD.spawn[0], y: CLOUD.spawn[1] };
+export const HINT_SPOT: Spot = P('hint');
+/** 시계탑(그림 속 성)의 가려질 영역 [x0,y0,x1,y1] 월드 픽셀 */
+export const TOWER_VEIL: number[] = CLOUD.veil;
 
 export interface BugNote { id: string; x: number; y: number; text: string }
 export const BUG_NOTES: BugNote[] = [
-  { id: 'cloud_01', x: 38, y: 12, text: '버그 노트: "구름 충돌 판정 다시 봐야 함 — 루뭉"' },
-  { id: 'cloud_02', x: 22, y: 4, text: '버그 노트: "단말기 대사 너무 짧음. 뚜닝이 이게 맞대."' },
+  { id: 'cloud_01', ...P('_note1'), text: '버그 노트: "구름 충돌 판정 다시 봐야 함 — 루뭉"' },
+  { id: 'cloud_02', ...P('_note2'), text: '버그 노트: "단말기 대사 너무 짧음. 뚜닝이 이게 맞대."' },
 ];
 /** 서브 퀘스트 SQ02 보상으로 받는 노트 */
 export const SQ02_NOTE = { id: 'cloud_03', text: '버그 노트: "주민 이름표 데이터 연결 안 됨. 나중에 고치기 — 빅윈"' };
 
 /** MQ02 시계탑 별 조각 */
-export const STAR_PIECES: Spot[] = [{ x: 30, y: 3 }, { x: 31, y: 25 }, { x: 40, y: 16 }];
+export const STAR_PIECES: Spot[] = [P('piece0'), P('piece1'), P('piece2')];
 
 /** SQ01 날아간 편지 */
-export const LETTERS: Spot[] = [{ x: 5, y: 25 }, { x: 27, y: 8 }, { x: 28, y: 20 }, { x: 14, y: 22 }, { x: 20, y: 5 }];
+export const LETTERS: Spot[] = [0, 1, 2, 3, 4].map(i => P(`letter${i}`));
 
 /** 구름 주민 */
 export interface Villager { id: string; name: string; x: number; y: number; hat: string }
 export const VILLAGERS: Villager[] = [
-  { id: 'piko', name: '피코', x: 19, y: 20, hat: '#e7799b' },
-  { id: 'grandma', name: '빵집 할머니', x: 5, y: 14, hat: '#fff8e8' },
-  { id: 'nb_a', name: '구름 주민', x: 12, y: 9, hat: '#9ec7ff' },
-  { id: 'nb_b', name: '구름 주민', x: 22, y: 19, hat: '#9fd39a' },
-  { id: 'nb_c', name: '구름 주민', x: 13, y: 23, hat: '#ffd66b' },
+  { id: 'piko', name: '피코', ...P('v_piko'), hat: '#e7799b' },
+  { id: 'grandma', name: '빵집 할머니', ...P('v_grandma'), hat: '#fff8e8' },
+  { id: 'nb_a', name: '구름 주민', ...P('v_nb_a'), hat: '#9ec7ff' },
+  { id: 'nb_b', name: '구름 주민', ...P('v_nb_b'), hat: '#9fd39a' },
+  { id: 'nb_c', name: '구름 주민', ...P('v_nb_c'), hat: '#ffd66b' },
 ];
 
-export const TOWER_SPOT: Spot = { x: 20, y: 11 };
-export const STATION_SPOT: Spot = { x: 16, y: 27 };
+export const TOWER_SPOT: Spot = P('tower');
+export const STATION_SPOT: Spot = P('station');
 
+const SG = (k: string) => { const v = (CLOUD.signs as Record<string, number[]>)[k]; return { x: v[0], y: v[1] }; };
 export const SIGNS: { x: number; y: number; text: string }[] = [
-  { x: 28, y: 13, text: '게시판. 이름이 적혀 있던 자리마다 검은 픽셀이 번져 있다.' },
-  { x: 10, y: 17, text: '마을 지도. 볼 때마다 길 모양이 조금씩 달라진다.' },
-  { x: 12, y: 3, text: '낡은 단말기. 화면에 알 수 없는 로그가 흐른다.' },
-  { x: 12, y: 12, text: '분수대. 물소리는 들리는데 물이 보이지 않는다.' },
-
+  { ...SG('board'), text: '게시판. 이름이 적혀 있던 자리마다 검은 픽셀이 번져 있다.' },
+  { ...SG('fountain'), text: '분수대. 물소리는 들리는데 물이 보이지 않는다.' },
+  { ...SG('dome'), text: '유리 온실. 안쪽 화분들이 전부 같은 방향으로 시들어 있다.' },
+  { ...SG('swing'), text: '벚나무 그네. 누군가 앉아 있던 것처럼 천천히 흔들린다.' },
 ];

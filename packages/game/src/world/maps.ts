@@ -10,7 +10,7 @@ export interface MapNote { id: string; x: number; y: number; text: string }
 export interface RegionMap {
   id: string; name: string; act: number; theme: string; bgm: string;
   cols: number; rows: number; secretAs?: RTile;
-  spawn: { x: number; y: number }; point?: { x: number; y: number };
+  spawn: { x: number; y: number }; point?: { x: number; y: number }; image?: string;
   npcs: MapNpc[]; signs: MapSign[]; notes: MapNote[];
   build(): { grid: RTile[][]; props: Prop[] };
 }
@@ -46,9 +46,9 @@ export const REGIONS: RegionMap[] = [
     spawn: { x: 14, y: 16 }, point: { x: 10, y: 16 },
     npcs: [],
     signs: [
-      { x: 23, y: 3, text: '빈 액자. 아홉 명이 함께 찍은 사진은 아직 없다.' },
-      { x: 5, y: 6, text: '빅윈의 작업용 모니터. 「savria_v0.9」 폴더가 열려 있다.' },
-      { x: 14, y: 3, text: '창밖으로 별이 보인다. 하나가 깜빡이다 꺼졌다.' },
+      { x: 0, y: 0, text: '빅윈의 작업용 모니터. 「savria_v0.9」 폴더가 열려 있다.' },
+      { x: 0, y: 0, text: '빈 액자 두 개. 아홉 명이 함께 찍은 사진은 아직 없다.' },
+      { x: 0, y: 0, text: '창밖으로 별이 보인다. 하나가 깜빡이다 꺼졌다.' },
     ],
     notes: [
       { id: 'studio_01', x: 28, y: 17, text: '버그 노트: "타이틀 BGM 너무 슬픔? — 하밍"' },
@@ -74,10 +74,10 @@ export const REGIONS: RegionMap[] = [
       { id: 'keeper', name: '숲지기', x: 10, y: 16, hat: '#7cc06a', lines: say('개울 너머 서쪽 숲은 길이 없어 보여도, 나무 사이로 지나갈 수 있는 곳이 있어.', '동쪽 사당은 덩굴이 막고 있어. 꽃을 피울 줄 아는 사람이 있다면 모를까.') },
     ],
     signs: [
-      { x: 23, y: 27, text: '거울의 숲. 비친 모습을 너무 오래 보지 마시오.' },
-      { x: 10, y: 4, text: '왼쪽 거울. 조금 더 어린 아홉 명이 웃고 있다.' },
-      { x: 22, y: 3, text: '가운데 거울. 아무도 비치지 않는다. 열 번째 자리처럼 비어 있다.' },
-      { x: 34, y: 4, text: '오른쪽 거울. 지금과 다른 옷을 입은 아홉 명이 서 있다.' },
+      { x: 0, y: 0, text: '거울의 숲. 비친 모습을 너무 오래 보지 마시오.' },
+      { x: 0, y: 0, text: '왼쪽 거울. 조금 더 어린 아홉 명이 웃고 있다.' },
+      { x: 0, y: 0, text: '거울 문. 아무도 비치지 않는다. 열 번째 자리처럼 비어 있다.' },
+      { x: 0, y: 0, text: '오른쪽 거울. 지금과 다른 옷을 입은 아홉 명이 서 있다.' },
     ],
     notes: [
       { id: 'mirror_01', x: 3, y: 27, text: '버그 노트: "서쪽 숲 비밀길 막는 거 깜빡함 — 도담히"' },
@@ -115,10 +115,10 @@ export const REGIONS: RegionMap[] = [
       { id: 'clerk', name: '매표원', x: 18, y: 27, hat: '#9ec7ff', lines: say('개장까지 1분 남았습니다. 1분째 계속 그렇습니다.') },
     ],
     signs: [
-      { x: 25, y: 25, text: '멈춰버린 놀이공원. 개장까지 00:01.' },
-      { x: 40, y: 11, text: '관계자 외 출입 금지. 바위가 길을 막고 있다.' },
-      { x: 10, y: 15, text: '회전목마. 말들이 반 바퀴 돌다 멈췄다.' },
-      { x: 31, y: 9, text: '관람차. 꼭대기 칸에 불이 켜져 있다.' },
+      { x: 0, y: 0, text: '멈춰버린 놀이공원. 개장까지 00:01.' },
+      { x: 0, y: 0, text: '회전목마. 말들이 반 바퀴 돌다 멈췄다.' },
+      { x: 0, y: 0, text: '관람차. 꼭대기 칸에 불이 켜져 있다.' },
+      { x: 0, y: 0, text: '고양이 성. 입구가 금 간 바위로 막혀 있다.' },
     ],
     notes: [
       { id: 'park_01', x: 42, y: 7, text: '버그 노트: "관람차 칸 개수 12개로 확정 — 돗챠"' },
@@ -156,9 +156,9 @@ export const REGIONS: RegionMap[] = [
       { id: 'b07', name: '안내 로봇 B-07', x: 25, y: 23, hat: '#8dc7e9', lines: say('환영합니다. 이 시설은 [삭제 예정]입니다.', '가운데 코어에 너무 가까이 가지 마세요. 정리 로그가 [삭제 예정].') },
     ],
     signs: [
-      { x: 22, y: 3, text: '대형 모니터. 고양이 얼굴이 깜빡이며 "SAVE DATA 0%"를 띄운다.' },
-      { x: 13, y: 16, text: '단말기. 로그: AUTO-CLEAN 대기 중… 대상: savria_v0.9' },
-      { x: 31, y: 16, text: '단말기. 로그: 최종 저장 연기 47회 — 사용자: ██' },
+      { x: 0, y: 0, text: '대형 모니터. 고양이 얼굴이 깜빡이며 "SAVE DATA 0%"를 띄운다.' },
+      { x: 0, y: 0, text: '단말기. 로그: AUTO-CLEAN 대기 중… 대상: savria_v0.9' },
+      { x: 0, y: 0, text: '단말기. 로그: 최종 저장 연기 47회 — 사용자: ██' },
     ],
     notes: [
       { id: 'data_01', x: 3, y: 27, text: '버그 노트: "서버실 문 숨기기 — 뚜닝"' },
@@ -192,8 +192,9 @@ export const REGIONS: RegionMap[] = [
       { id: 'firefly', name: '반딧불이', x: 30, y: 26, hat: '#fff1b8', lines: say('동쪽 미로 한가운데에 반짝이는 게 있어. 길은… 왼쪽 벽을 따라가 봐.') },
     ],
     signs: [
-      { x: 18, y: 27, text: '달빛 정원. 꽃을 꺾지 마시오. 피우는 건 환영.' },
-      { x: 22, y: 9, text: '정자. 돔 안쪽에 별자리가 그려져 있다. 데이지 모양 하나가 지워져 있다.' },
+      { x: 0, y: 0, text: '달빛 정원. 꽃을 꺾지 마시오. 피우는 건 환영.' },
+      { x: 0, y: 0, text: '초승달 조각상. 달빛이 연못 위에 별자리를 그린다.' },
+      { x: 0, y: 0, text: '정자. 돔 안쪽에 별자리가 그려져 있다. 데이지 모양 하나가 지워져 있다.' },
     ],
     notes: [
       { id: 'garden_01', x: 36, y: 8, text: '버그 노트: "미로 너무 어려우면 반딧불 힌트 — 다래"' },
@@ -242,8 +243,8 @@ export const REGIONS: RegionMap[] = [
       { id: 'porter', name: '역무원', x: 9, y: 20, hat: '#e6b6ba', lines: say('분실물 센터예요. 주인 잃은 물건이 자꾸 늘어나요.') },
     ],
     signs: [
-      { x: 30, y: 15, text: '사라진 기차역. 종착역 행 열차는 운행하지 않습니다.' },
-      { x: 23, y: 6, text: '역사 시계. 바늘이 노을 시각에 멈춰 있다.' },
+      { x: 0, y: 0, text: '광장 바닥의 나침반. 종착역 방향만 지워져 있다.' },
+      { x: 0, y: 0, text: '역사 시계. 바늘이 노을 시각에 멈춰 있다.' },
     ],
     notes: [
       { id: 'station_01', x: 44, y: 16, text: '버그 노트: "고양이 길 = 시로 전용! — 시로"' },
@@ -280,9 +281,9 @@ export const REGIONS: RegionMap[] = [
       { id: 'framer', name: '액자 장인', x: 8, y: 9, hat: '#a07a6a', lines: say('빈 액자 틀만 잔뜩 만들었어요. 넣을 사진이 없어서.') },
     ],
     signs: [
-      { x: 25, y: 22, text: '사진 속 마을. 이곳은 누군가의 사진 안이다.' },
-      { x: 13, y: 10, text: '커다란 폴라로이드. 아무도 없는 분수대가 찍혀 있다.' },
-      { x: 34, y: 10, text: '커다란 폴라로이드. 빈 벤치가 찍혀 있다.' },
+      { x: 0, y: 0, text: '거대한 카메라 조형물. 렌즈 속에 아무도 비치지 않는다.' },
+      { x: 0, y: 0, text: '이젤 위 사진. 아무도 없는 다리가 찍혀 있다.' },
+      { x: 0, y: 0, text: '사진관 간판. 「단체 사진 환영」.' },
     ],
     notes: [
       { id: 'photo_01', x: 11, y: 3, text: '버그 노트: "집 사이 골목 = 숨은 길 — 으네"' },
@@ -317,8 +318,8 @@ export const REGIONS: RegionMap[] = [
       { id: 'cat', name: '검은 고양이', x: 25, y: 20, hat: '#1d1a52', lines: say('냐.', '(고양이가 북쪽 건물 사이 좁은 틈을 쳐다본다.)') },
     ],
     signs: [
-      { x: 30, y: 27, text: '그림자의 도시. 불 꺼진 골목은 혼자 걷지 마시오.' },
-      { x: 23, y: 6, text: '좁은 틈. 고양이라면 지나갈 수 있을 것 같다.' },
+      { x: 0, y: 0, text: '보랏빛 수정. 가까이 가면 누군가의 혼잣말이 들린다.' },
+      { x: 0, y: 0, text: '그림자의 시계탑. 바늘이 거꾸로 돈다.' },
     ],
     notes: [
       { id: 'shadow_01', x: 24, y: 2, text: '버그 노트: "시로 방 = 의자 9개 — 시로"' },
@@ -350,8 +351,8 @@ export const REGIONS: RegionMap[] = [
     spawn: { x: 22, y: 28 }, point: { x: 24, y: 27 },
     npcs: [],
     signs: [
-      { x: 22, y: 18, text: '세이브 코어. 빛나는 큐브 안에서 별빛이 천천히 돈다.' },
-      { x: 20, y: 28, text: '마지막 저장소. 저장하시겠습니까? [예] [아니오] [나중에]' },
+      { x: 0, y: 0, text: '세이브 코어. 빛나는 큐브 안에서 별빛이 천천히 돈다.' },
+      { x: 0, y: 0, text: '마지막 저장소. 저장하시겠습니까? [예] [아니오] [나중에]' },
     ],
     notes: [
       { id: 'lastsave_01', x: 22, y: 2, text: '버그 노트: "북쪽 섬은 구름 다리로만 — 루뭉"' },
@@ -379,9 +380,8 @@ export const REGIONS: RegionMap[] = [
       { id: 'cron', name: '크론', x: 30, y: 18, hat: '#3d4793', lines: say('이 데이터들은 정리 대상입니까?', '…아직 대답을 기다리는 중입니다.') },
     ],
     signs: [
-      { x: 15, y: 16, text: '버려진 아이디어: "9인 레이싱 미니게임"' },
-      { x: 30, y: 21, text: '버려진 아이디어: "작업실 고양이 키우기"' },
-      { x: 23, y: 7, text: '커다란 토끼 인형. 누군가 첫 회의 때 가져왔던 것이다.' },
+      { x: 0, y: 0, text: '유리 상자 안의 버려진 아이디어: "9인 레이싱 미니게임"' },
+      { x: 0, y: 0, text: '재활용 창고. 지워진 지역 초안들이 상자째 쌓여 있다.' },
     ],
     notes: [
       { id: 'trash_01', x: 3, y: 15, text: '버그 노트: "지우지 말고 휴지통에. 나중에 아까울 수도 있으니까 — 뚜닝"' },
@@ -405,6 +405,24 @@ export const REGIONS: RegionMap[] = [
     },
   },
 ];
+
+// ───────── 그림 맵 (원화 배경 + 24px 충돌 격자) ─────────
+const DATA = import.meta.glob('./mapdata/*.json', { eager: true, import: 'default' }) as Record<string, any>;
+export const MAP_IMG = import.meta.glob('../assets/maps/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+for (const r of REGIONS) {
+  const d = DATA[`./mapdata/${r.id}.json`];
+  if (!d) continue;
+  r.image = MAP_IMG[`../assets/maps/${r.id}.webp`];
+  r.cols = d.cols; r.rows = d.rows;
+  r.spawn = { x: d.spawn[0], y: d.spawn[1] };
+  if (d.point) r.point = { x: d.point[0], y: d.point[1] };
+  const at = (bag: Record<string, number[]> | undefined, key: string) => bag?.[key];
+  r.npcs = r.npcs.map(n => { const v = at(d.npcs, n.id); return v ? { ...n, x: v[0], y: v[1] } : n; });
+  r.notes = r.notes.map(n => { const v = at(d.notes, n.id); return v ? { ...n, x: v[0], y: v[1] } : n; });
+  const keys = Object.keys(d.signs ?? {});
+  r.signs = r.signs.slice(0, keys.length).map((sg, i) => { const v = d.signs[keys[i]]; return { ...sg, x: v[0], y: v[1] }; });
+  r.build = () => ({ grid: (d.grid as string[]).map(row => [...row] as RTile[]), props: [] });
+}
 
 export const regionById = (id: string) => REGIONS.find(r => r.id === id);
 
