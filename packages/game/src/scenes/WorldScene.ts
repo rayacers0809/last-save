@@ -6,13 +6,13 @@ import { Story1 } from '../systems/StoryRunner';
 import { CHAR_IDS, charById, WALK, DIR_ROW, type CharId, type Dir } from '../data/characters';
 import {
   TILE, COLS, ROWS, BLOCKING, buildGrid, MEMBER_SPOTS, POINT_SPOT, START_SPOT, BUG_NOTES, SIGNS, type Tile,
-  STAR_PIECES, LETTERS, VILLAGERS, TOWER_SPOT, STATION_SPOT, SQ02_NOTE,
+  STAR_PIECES, LETTERS, VILLAGERS, TOWER_SPOT, STATION_SPOT, SQ02_NOTE, CLOUD_DECO, CLOUD_LAMPS, BUILDINGS,
 } from '../world/cloudVillage';
 import { paintMap, makeFolk, makeQuestProps } from '../gfx/paint';
 import { questLog, ITEM_NAMES } from '../data/quests';
 import { Audio } from '../systems/AudioManager';
 import { REGIONS, regionById, MAP_ORDER, BLOCK, type RegionMap } from '../world/maps';
-import { THEMES, paintRegionMap, makeSky, propTexture, propUp } from '../gfx/region';
+import { THEMES, DECO, paintRegionMap, makeSky, propTexture, propUp } from '../gfx/region';
 import { SaveManager } from '../systems/SaveManager';
 import { runDialogue, toast, UIState, FONT } from './UIScene';
 import { glitchBurst } from './PrologueScene';
@@ -86,18 +86,25 @@ export class WorldScene extends Phaser.Scene {
       this.sky = this.add.tileSprite(0, 0, 960, 540, `sky_${this.region.theme}`).setOrigin(0).setScrollFactor(0).setDepth(-20);
       this.far = this.add.tileSprite(0, 300, 960, 96, 'farcloud').setOrigin(0).setScrollFactor(0).setDepth(-19).setAlpha(th.edge === 'cliff' ? 0.35 : 0.8).setVisible(th.edge !== 'indoor');
       if (th.moon) { const m = this.add.circle(760, 90, 46, 0xf3e6ff).setScrollFactor(0.05).setDepth(-19).setAlpha(0.9); this.add.circle(760, 90, 70, 0xd3a9e1, 0.15).setScrollFactor(0.05).setDepth(-19); m.setStrokeStyle(4, 0xffffff, 0.4); }
-      paintRegionMap(this, `map_${this.mapId}`, this.grid as any, th, this.region.secretAs);
+      paintRegionMap(this, `map_${this.mapId}`, this.grid as any, th, this.region.secretAs, true);
       const night: Record<string, number> = { mirror: 0.16, garden: 0.22, shadow: 0.2, data: 0.1, studio: 0.08 };
       if (night[this.mapId]) this.add.rectangle(0, 0, 960, 540, Phaser.Display.Color.HexStringToColor(th.sky[0]).color, night[this.mapId]).setOrigin(0).setScrollFactor(0).setDepth(8000);
       this.add.image(0, 0, `map_${this.mapId}`).setOrigin(0).setDepth(-10);
       // 소품: 디자인 PNG(assets/props/<이름>.png)가 있으면 그걸, 없으면 코드로 그린 임시 그림
       props.forEach((p, i) => {
         const up = propUp(p.k), w = p.w * TILE, h = (p.h + up) * TILE;
-        let tex = `propimg_${p.k}${p.color ? '_' + p.color.slice(1) : ''}`;
-        if (!this.textures.exists(tex)) tex = this.textures.exists(`propimg_${p.k}`) ? `propimg_${p.k}` : '';
-        if (!tex) { tex = `prop_${this.mapId}_${i}`; propTexture(this, tex, p, th); }
-        const img = this.add.image(p.x * TILE, (p.y + p.h) * TILE, tex).setOrigin(0, 1).setDisplaySize(w, h);
-        img.setDepth(p.walk ? -5 : (p.y + p.h) * TILE - 1);
+        const want = [p.art, `${p.k}${p.color ? '_' + p.color.slice(1) : ''}`, p.k].filter(Boolean) as string[];
+        const found = want.map(k => `propimg_${k}`).find(k => this.textures.exists(k));
+        const depth = p.walk ? -5 : (p.y + p.h) * TILE - 1;
+        if (found) {
+          // 디자인 그림: 비율 유지, 바닥 칸 가로에 맞추고 바닥 중앙에 세움
+          const src = this.textures.get(found).getSourceImage() as HTMLImageElement;
+          const sc = Math.min((w * (p.fit ?? 1)) / src.width, (h * 1.25) / src.height);
+          this.add.image(p.x * TILE + w / 2, (p.y + p.h) * TILE + (p.sink ?? 0), found).setOrigin(0.5, 1).setScale(sc).setDepth(depth);
+        } else {
+          const tex = `prop_${this.mapId}_${i}`; propTexture(this, tex, p, th);
+          this.add.image(p.x * TILE, (p.y + p.h) * TILE, tex).setOrigin(0, 1).setDisplaySize(w, h).setDepth(depth);
+        }
       });
     } else {
       this.cameras.main.setBackgroundColor('#a9b6ff');
@@ -105,11 +112,13 @@ export class WorldScene extends Phaser.Scene {
       this.far = this.add.tileSprite(0, 300, 960, 96, 'farcloud').setOrigin(0).setScrollFactor(0).setDepth(-19).setAlpha(0.8);
       paintMap(this, 'map_cloud', this.grid as Tile[][]);
       this.add.image(0, 0, 'map_cloud').setOrigin(0).setDepth(-10);
+      this.dressCloud();
     }
 
+    if (this.region) this.placeDeco(DECO[this.region.theme] ?? DECO.cloud);
     // 바위 · 덩굴
     for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
-      if (this.grid[y][x] === 'X') this.rocks.set(key(x, y), this.add.image(x * TILE, y * TILE, 'rock').setOrigin(0).setDepth((y + 1) * TILE));
+      if (this.grid[y][x] === 'X') this.rocks.set(key(x, y), this.add.image(x * TILE + 12, (y + 1) * TILE + 2, this.textures.exists('deco_rock') ? 'deco_rock' : 'rock').setOrigin(0.5, 1).setDisplaySize(30, 28).setDepth((y + 1) * TILE));
       if (this.grid[y][x] === 'V') this.vines.set(key(x, y), this.add.image(x * TILE, y * TILE, 'vine').setOrigin(0).setDepth((y + 1) * TILE));
     }
     if (this.region) this.buildRegionExtras();
@@ -155,10 +164,69 @@ export class WorldScene extends Phaser.Scene {
     else this.time.delayedCall(400, () => toast('이어서 시작해요.'));
   }
 
+  /** 구름 마을을 시트 그림으로 꾸민다 (지형·충돌·퀘스트 좌표는 그대로) */
+  private dressCloud() {
+    const has = (k: string) => this.textures.exists(k);
+    const img = (k: string, cx: number, by: number, w: number, depth: number) => {
+      const src = this.textures.get(k).getSourceImage() as HTMLImageElement;
+      return this.add.image(cx, by, k).setOrigin(0.5, 1).setScale(w / src.width).setDepth(depth);
+    };
+    // 건물: 빵집=분홍, 도서관=파랑, 우체국=보라
+    const arts = ['propimg_house_e7799b', 'propimg_house_7fa7e6', 'propimg_house_9b84d6'];
+    BUILDINGS.forEach((b, i) => {
+      if (!has(arts[i])) return;
+      const w = (b.x1 - b.x0 + 1) * TILE;
+      img(arts[i], (b.x0 * TILE + (b.x1 + 1) * TILE) / 2, (b.y1 + 1) * TILE + 2, w + 10, (b.y1 + 1) * TILE - 1);
+      const lbl = this.add.text((b.x0 + b.x1 + 1) * TILE / 2, (b.y1 + 1) * TILE + 4, b.name, { fontFamily: FONT, fontSize: '12px', color: '#5a4a8a', backgroundColor: '#fff8e8cc', padding: { x: 4, y: 1 } }).setOrigin(0.5, 0).setDepth((b.y1 + 1) * TILE);
+    });
+    // 분수
+    if (has('propimg_fountain')) img('propimg_fountain', 13 * TILE, 14 * TILE + 4, 64, 14 * TILE);
+    // 북쪽 언덕 신전 (단말기 옆 장식) · 동쪽 섬 수정
+    if (has('propimg_gazebo')) img('propimg_gazebo', 19 * TILE, 3 * TILE + 2, 76, 3 * TILE - 2).setAlpha(0.98);
+    // 나무·덤불
+    for (const d of CLOUD_DECO) if (has(`deco_${d.k}`)) img(`deco_${d.k}`, d.x * TILE + 12, (d.y + 1) * TILE, 40, (d.y + 1) * TILE - 2);
+    for (const l of CLOUD_LAMPS) if (has('deco_lamp')) img('deco_lamp', l.x * TILE + 12, (l.y + 1) * TILE - 4, 14, (l.y + 1) * TILE - 2);
+    for (const [x, y] of [[29, 23], [31, 23], [32, 23], [29, 24], [29, 25], [32, 24], [32, 25]]) if (has('deco_bush_c')) img('deco_bush_c', x * TILE + 12, (y + 1) * TILE, 28, (y + 1) * TILE - 2);
+    // 표지판·지도판
+    if (has('deco_sign')) { img('deco_sign', 28 * TILE + 12, 14 * TILE, 22, 14 * TILE - 2); img('deco_sign', 10 * TILE + 12, 18 * TILE, 22, 18 * TILE - 2); }
+    // 계단
+    for (const [x, y] of [[16, 3], [17, 3], [16, 26], [17, 26]]) if (has('deco_stairs')) this.add.image(x * TILE, y * TILE, 'deco_stairs').setOrigin(0).setDisplaySize(TILE, TILE).setDepth(-9);
+    // 화단 테두리 꽃
+    if (has('deco_bush_b')) for (const x of [22, 27]) img('deco_bush_b', x * TILE + 12, 23 * TILE, 26, 23 * TILE - 2);
+  }
+
+  // ---------- 장식 스프라이트 ----------
+  private placeDeco(set: { trees: string[]; bushes: string[]; lamp: string; fence: string; bridge: string }) {
+    const has = (k: string) => this.textures.exists(`deco_${k}`);
+    const h = (x: number, y: number) => { let v = x * 374761393 + y * 668265263; v = (v ^ (v >> 13)) * 1274126177; return ((v ^ (v >> 16)) >>> 0) / 4294967295; };
+    const vis = (t: string) => t === '?' ? (this.region?.secretAs ?? 'T') : t;
+    const put = (k: string, x: number, y: number, w: number, hgt: number, depth?: number, ox = 0) => {
+      if (!has(k)) return null;
+      return this.add.image(x * TILE + 12 + ox, (y + 1) * TILE, `deco_${k}`).setOrigin(0.5, 1).setDisplaySize(w, hgt).setDepth(depth ?? (y + 1) * TILE - 2);
+    };
+    for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
+      const t = vis(this.grid[y][x]); const r = h(x, y);
+      switch (t) {
+        case 'T': if (set.trees.length) { const s = 0.92 + r * 0.2; put(set.trees[Math.floor(r * set.trees.length)], x, y, 40 * s, 42 * s, undefined, (r - 0.5) * 4); } break;
+        case '*': if (set.bushes.length) put(set.bushes[Math.floor(r * set.bushes.length)], x, y, 28, 18); break;
+        case 'i': put(set.lamp, x, y, 14, 36); break;
+        case 'c': put('crystal', x, y, 22, 24); break;
+        case 'b': put('bench', x, y, 26, 18); break;
+        case 'B': put('sign', x, y, 20, 22); break;
+        case '|': put(set.fence, x, y, 26, 18); break;
+        case 'L': if (has('stairs')) this.add.image(x * TILE, y * TILE, 'deco_stairs').setOrigin(0).setDisplaySize(TILE, TILE).setDepth(-9); break;
+        case 'H': break; // 다리는 바닥 그림(나무 판자)으로 충분
+      }
+    }
+  }
+
   // ---------- 지역별 구성 ----------
   private buildCloudExtras(d: typeof GameState.data) {
     // 시계탑
-    this.tower = this.add.image(21 * TILE, 12 * TILE, 'tower').setOrigin(0.5, 1).setDepth(12 * TILE);
+    if (this.textures.exists('propimg_clocktower')) {
+      const src = this.textures.get('propimg_clocktower').getSourceImage() as HTMLImageElement;
+      this.tower = this.add.image(21 * TILE, 12 * TILE + 4, 'propimg_clocktower').setOrigin(0.5, 1).setScale(64 / src.width).setDepth(12 * TILE);
+    } else this.tower = this.add.image(21 * TILE, 12 * TILE, 'tower').setOrigin(0.5, 1).setDepth(12 * TILE);
     if (GameState.flag('mq.gather') && !GameState.flag('mq.cloud')) this.tower.setVisible(false);
     makeQuestProps(this);
     if (GameState.flag('mq.cloud')) this.lightSkyStar(false);

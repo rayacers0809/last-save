@@ -102,7 +102,8 @@ class AudioImpl {
   bgm(key: string | null) {
     if (key === this.wanted) return;
     this.wanted = key;
-    const url = key ? fileFor(key) : undefined;
+    const ALIAS: Record<string, string> = { title: 'studio', cloud: 'village' };
+    const url = key ? (fileFor(key) ?? (ALIAS[key] ? fileFor(ALIAS[key]) : undefined)) : undefined;
     if (this.el) { this.el.pause(); this.el = undefined; }
     if (url) {
       this.stopSynth();

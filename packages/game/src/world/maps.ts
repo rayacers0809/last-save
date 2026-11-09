@@ -134,7 +134,7 @@ export const REGIONS: RegionMap[] = [
       b.prop('fountain', 21, 14, 3, 3);
       b.prop('carousel', 7, 11, 6, 5);
       b.prop('stall', 35, 13, 3, 2, { color: '#ff9cc6' }).prop('stall', 35, 18, 3, 2, { color: '#ffd66b' }).prop('stall', 35, 23, 3, 2, { color: '#9fe0c4' });
-      b.prop('house', 3, 20, 7, 5, { color: '#d08cc7', label: '오락실' });
+      b.prop('house', 3, 20, 7, 5, { color: '#d08cc7', label: '오락실', art: 'arcade' });
       b.prop('booth', 16, 25, 2, 2, { color: '#9ec7ff' }).prop('balloon', 13, 22, 2, 2);
       b.prop('arch', 20, 26, 6, 1, { posts: true });
       // 관계자 구역
@@ -207,7 +207,7 @@ export const REGIONS: RegionMap[] = [
       b.prop('gazebo', 19, 4, 6, 5);
       b.fill(14, 19, 29, 24, '~').fill(21, 19, 22, 24, 'H');
       b.prop('statue', 16, 10, 1, 1).prop('statue', 27, 10, 1, 1);
-      b.prop('arch', 20, 27, 4, 1, { posts: true });
+      b.prop('arch', 20, 27, 4, 1, { posts: true, art: 'arch_flower' });
       b.fill(8, 8, 12, 10, '.');
       b.rows_(31, 3, [
         '***********',
@@ -263,7 +263,7 @@ export const REGIONS: RegionMap[] = [
       b.fill(37, 14, 46, 14, 'T').fill(37, 14, 37, 18, 'T').fill(37, 18, 46, 18, 'T').set(41, 18, 'g');
       b.fill(2, 22, 6, 22, '*').fill(6, 22, 6, 26, '*').set(6, 24, 'X');
       b.fill(23, 15, 24, 26, '=').fill(8, 20, 36, 20, '=');
-      b.prop('booth', 6, 17, 3, 2, { color: '#dd98c6' });
+      b.prop('booth', 6, 17, 3, 2, { color: '#dd98c6', art: 'lostfound' });
       b.dots([[12, 9], [34, 9]], 'b');
       b.dots([[8, 8], [16, 8], [32, 8], [40, 8], [20, 21], [27, 21]], 'i');
       b.dots([[3, 16], [12, 15], [15, 24], [30, 24], [33, 16], [40, 22], [44, 25], [18, 17], [10, 25]], 'T');
@@ -292,9 +292,9 @@ export const REGIONS: RegionMap[] = [
     build() {
       const b = new B(46, 32, '.').border('T', 2);
       b.fill(20, 29, 25, 31, '.').fill(22, 31, 23, 31, 'S');
-      b.fill(14, 11, 31, 21, '=').prop('fountain', 21, 15, 4, 3);
-      b.prop('house', 4, 3, 6, 5, { color: '#7fae78' }).prop('house', 13, 2, 6, 5, { color: '#7fa7e6' }).prop('house', 24, 2, 6, 5, { color: '#e7799b', label: '사진관' })
-        .prop('house', 35, 3, 6, 5, { color: '#7fae78' }).prop('house', 4, 22, 6, 5, { color: '#e7799b' }).prop('house', 35, 22, 6, 5, { color: '#7fa7e6' });
+      b.fill(14, 11, 31, 21, '=').prop('fountain', 21, 15, 4, 3, { art: 'fountain_photo' });
+      b.prop('house', 4, 3, 6, 5, { art: 'house2_7fae78' }).prop('house', 13, 2, 6, 5, { art: 'house2_7fa7e6' }).prop('house', 24, 2, 6, 5, { label: '사진관', art: 'house_e7799b' })
+        .prop('house', 35, 3, 6, 5, { art: 'house_9b84d6' }).prop('house', 4, 22, 6, 5, { art: 'house2_e7799b' }).prop('house', 35, 22, 6, 5, { art: 'house_7fa7e6' });
       b.fill(7, 8, 7, 11, '=').fill(16, 7, 16, 11, '=').fill(27, 7, 27, 11, '=').fill(38, 8, 38, 11, '=').fill(7, 8, 38, 8, '=');
       b.fill(7, 21, 7, 21, '=').fill(38, 21, 38, 21, '=').fill(7, 21, 13, 21, '=').fill(32, 21, 38, 21, '=');
       b.fill(21, 27, 24, 28, 'L').fill(22, 22, 23, 26, '=');
@@ -328,14 +328,14 @@ export const REGIONS: RegionMap[] = [
     build() {
       const b = new B(46, 32, '.');
       b.fill(0, 0, 45, 0, ' ');
-      b.prop('tower', 1, 1, 5, 4).prop('tower', 8, 2, 5, 4).prop('tower', 14, 1, 5, 4).prop('tower', 29, 1, 5, 4).prop('tower', 35, 2, 5, 4).prop('tower', 41, 1, 5, 4);
+      b.prop('tower', 1, 1, 18, 4).prop('tower', 29, 1, 16, 4);
       b.fill(20, 1, 27, 4, 'k').fill(19, 1, 19, 5, '#').fill(28, 1, 28, 5, '#').fill(19, 5, 28, 5, '#').set(23, 5, 'g');
       b.fill(0, 14, 45, 17, '~').fill(8, 14, 10, 17, 'H').fill(22, 14, 24, 17, 'H').fill(36, 14, 38, 17, 'H');
       b.fill(38, 6, 45, 6, '#').fill(38, 6, 38, 12, '#').fill(38, 12, 45, 12, '#').set(38, 9, 'X');
       b.fill(0, 6, 0, 13, '#').fill(45, 6, 45, 13, '#');
       b.fill(1, 10, 37, 10, '=').fill(22, 18, 24, 27, '=').fill(1, 21, 44, 21, '=');
       b.fill(14, 19, 19, 24, 'k').fill(28, 7, 33, 9, 'k');
-      b.prop('tower', 2, 25, 5, 4).prop('tower', 10, 24, 5, 4).prop('tower', 30, 25, 5, 4).prop('tower', 38, 24, 5, 4);
+      b.prop('tower', 2, 24, 14, 4).prop('tower', 30, 24, 14, 4);
       b.fill(0, 30, 45, 31, ' ').fill(0, 18, 0, 29, '#').fill(45, 18, 45, 29, '#');
       b.fill(22, 29, 23, 29, 'S');
       b.dots([[6, 8], [16, 8], [26, 12], [34, 8], [8, 19], [20, 26], [26, 26], [36, 19]], 'i');
@@ -365,7 +365,7 @@ export const REGIONS: RegionMap[] = [
       b.fill(19, 1, 25, 4, '.').fill(35, 12, 41, 18, '.').fill(2, 12, 8, 18, '.').fill(19, 26, 25, 30, '.');
       b.fill(21, 24, 22, 25, 'H').fill(31, 15, 34, 15, 'H').fill(9, 15, 13, 15, 'H');
       b.fill(21, 30, 22, 30, 'S');
-      b.prop('pillar', 15, 10, 1, 1).prop('pillar', 29, 10, 1, 1).prop('pillar', 15, 20, 1, 1).prop('pillar', 29, 20, 1, 1);
+      b.prop('pillar', 15, 10, 1, 1, { art: 'crystal_pillar_b', fit: 1.4 }).prop('pillar', 29, 10, 1, 1, { art: 'crystal_pillar_b', fit: 1.4 }).prop('pillar', 15, 20, 1, 1, { art: 'crystal_pillar_b', fit: 1.4 }).prop('pillar', 29, 20, 1, 1, { art: 'crystal_pillar_b', fit: 1.4 });
       b.dots([[20, 2], [24, 2], [36, 13], [40, 17], [3, 17], [7, 13], [19, 27], [25, 27]], 'c');
       b.fill(22, 23, 22, 23, 'L');
       return b.done();
@@ -394,7 +394,7 @@ export const REGIONS: RegionMap[] = [
       b.fill(16, 7, 29, 11, ',').fill(16, 12, 29, 12, '|').fill(21, 12, 24, 12, 'L');
       b.prop('crt', 17, 8, 4, 3).prop('bunny', 24, 7, 4, 4);
       b.prop('monitors', 29, 14, 3, 2).prop('monitors', 12, 20, 3, 2);
-      b.prop('pillar', 12, 13, 1, 1).prop('pillar', 33, 21, 1, 1);
+      b.prop('pillar', 12, 13, 1, 1, { art: 'pillar_broken', fit: 1.6 }).prop('pillar', 33, 21, 1, 1, { art: 'pillar_broken', fit: 1.6 });
       b.fill(2, 13, 5, 17, '.').fill(40, 12, 44, 16, '.').fill(20, 1, 25, 3, '.').fill(20, 29, 25, 31, '.');
       b.fill(22, 26, 23, 26, 'S');
       b.dots([[3, 14], [43, 13], [21, 30], [24, 30], [14, 18], [31, 10]], 'c');

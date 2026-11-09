@@ -9,7 +9,7 @@ export const ROWS = 30;
  *  ' ' 하늘(못 지나감)  . 구름 땅  = 돌길  # 벽  ^ 지붕  D 문  * 구름 덤불
  *  f 시든 화단  X 금 간 바위  W 분수  B 게시판  M 지도판  C 단말기  T 시계탑 받침  S 하늘 정류장
  */
-export type Tile = ' ' | '.' | '=' | '#' | '^' | 'D' | '*' | 'f' | 'X' | 'W' | 'B' | 'M' | 'C' | 'T' | 'S';
+export type Tile = ' ' | '.' | '=' | '#' | '^' | 'D' | '*' | 'f' | 'X' | 'W' | 'B' | 'M' | 'C' | 'T' | 'S' | 'L';
 
 export const BLOCKING = new Set<Tile>([' ', '#', '^', 'D', '*', 'f', 'X', 'W', 'B', 'M', 'C', 'T', 'S']);
 
@@ -53,8 +53,19 @@ export function buildGrid(): Tile[][] {
   g[27][16] = 'S'; g[27][17] = 'S';
   // 덤불
   for (const [x, y] of [[3, 13], [3, 18], [28, 24], [12, 25], [21, 25], [31, 19], [25, 17], [10, 5], [24, 5], [38, 16]]) g[y][x] = '*';
+  // 계단 (언덕 ↔ 광장, 광장 ↔ 남쪽 정류장)
+  g[3][16] = 'L'; g[3][17] = 'L'; g[26][16] = 'L'; g[26][17] = 'L';
   return g;
 }
+
+/** 꾸밈 요소 (걸을 수 있는 칸 위에만 두지 않는다 — 덤불·지붕 등 막힌 칸이나 가장자리) */
+export interface CloudDeco { k: string; x: number; y: number; w?: number; h?: number }
+export const CLOUD_DECO: CloudDeco[] = [
+  // 벚꽃·하얀 나무 (막힌 덤불 칸 위에 세움)
+  ...[[3, 13], [3, 18], [28, 24], [12, 25], [21, 25], [31, 19], [25, 17], [10, 5], [24, 5], [38, 16]].map(([x, y], i) => ({ k: i % 3 === 1 ? 'tree_white' : 'tree_pink', x, y })),
+];
+/** 가로등 (길가) */
+export const CLOUD_LAMPS: { x: number; y: number }[] = [{ x: 14, y: 14 }, { x: 19, y: 16 }, { x: 14, y: 21 }, { x: 19, y: 24 }, { x: 13, y: 4 }, { x: 21, y: 4 }];
 
 export interface Spot { x: number; y: number } // 타일 좌표 (발 위치 타일)
 

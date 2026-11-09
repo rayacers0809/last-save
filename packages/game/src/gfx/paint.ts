@@ -119,6 +119,8 @@ function shade(hex: string, amt: number) {
 }
 
 export function paintMap(scene: Phaser.Scene, key: string, g: Tile[][]) {
+  const dressed = scene.textures.exists('propimg_house_e7799b');
+  if (dressed) g = g.map(row => row.map(t => (t === '#' || t === '^' || t === 'D' || t === '*' || t === 'W' || t === 'T' || t === 'B' || t === 'M' || t === 'L') ? '.' : t)) as Tile[][];
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const tex = scene.textures.createCanvas(key, COLS * TILE, ROWS * TILE)!;
   const c = tex.getContext();

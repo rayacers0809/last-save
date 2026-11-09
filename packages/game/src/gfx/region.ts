@@ -26,6 +26,24 @@ export interface Theme {
   floorGrid?: string;
 }
 
+/** 시트에서 잘라 온 장식 스프라이트 (assets/deco). 지역마다 어울리는 걸 고른다 */
+export interface DecoSet { trees: string[]; bushes: string[]; lamp: string; fence: string; bridge: string; ground?: string; path?: string }
+export const DECO: Record<string, DecoSet> = {
+  cloud:    { trees: ['tree_pink', 'tree_white'], bushes: ['bush_b', 'bush_c'], lamp: 'lamp', fence: 'fence_white', bridge: 'bridge_stone' },
+  studio:   { trees: [], bushes: [], lamp: 'lamp', fence: 'fence_dark', bridge: 'bridge_wood' },
+  mirror:   { trees: ['tree_purple', 'tree_blue'], bushes: ['bush_c', 'bush_d'], lamp: 'lamp', fence: 'fence_dark', bridge: 'bridge_wood' },
+  park:     { trees: ['tree_pink', 'tree_purple'], bushes: ['bush_b', 'bush_a'], lamp: 'lamp', fence: 'fence_white', bridge: 'bridge_wood' },
+  data:     { trees: [], bushes: [], lamp: 'lamp2', fence: 'fence_dark', bridge: 'bridge_stone' },
+  garden:   { trees: ['tree_white', 'tree_pink'], bushes: ['bush_a'], lamp: 'lamp', fence: 'fence_white', bridge: 'bridge_stone' },
+  station:  { trees: ['tree_pink'], bushes: ['bush_b', 'bush_a'], lamp: 'lamp', fence: 'fence_dark', bridge: 'bridge_wood' },
+  photo:    { trees: ['tree_pink', 'tree_white', 'tree_blue'], bushes: ['bush_a', 'bush_b'], lamp: 'lamp', fence: 'fence_white', bridge: 'bridge_wood' },
+  shadow:   { trees: ['tree_purple'], bushes: ['bush_d'], lamp: 'lamp2', fence: 'fence_dark', bridge: 'bridge_stone' },
+  lastsave: { trees: ['tree_blue'], bushes: ['bush_c'], lamp: 'lamp2', fence: 'fence_white', bridge: 'bridge_stone' },
+  trash:    { trees: ['tree_pink', 'tree_white'], bushes: ['bush_a', 'bush_c'], lamp: 'lamp', fence: 'fence_white', bridge: 'bridge_wood' },
+};
+/** 장식 스프라이트로 그리는 타일 (코드 그림은 건너뜀) */
+export const DECO_TILES = new Set(['T', '*', 'i', 'c', 'b', 'B', 'X', '|', 'H', 'L']);
+
 export const THEMES: Record<string, Theme> = {
   studio: {
     ground: '#3b3478', groundDot: '#463f8c', alt: '#4a3f8f', altDot: '#5a4ea6', path: '#2f2a64', pathLine: '#25204f',
@@ -102,7 +120,7 @@ export const THEMES: Record<string, Theme> = {
 export type RTile = ' ' | '.' | ',' | '=' | '#' | 'T' | '*' | '~' | 'H' | 'L' | '|' | 'i' | 'c' | 'X' | '?' | 'k' | 'g' | 'V' | 'r' | 'S' | 'P' | 'b' | 'f' | 'B';
 
 /** 기본 타일 그리기 (1패스: 바닥, 2패스: 위로 솟는 것) */
-export function paintRegionMap(scene: Phaser.Scene, key: string, g: RTile[][], th: Theme, secretAs: RTile = 'T') {
+export function paintRegionMap(scene: Phaser.Scene, key: string, g: RTile[][], th: Theme, secretAs: RTile = 'T', skipDeco = false) {
   const rows = g.length, cols = g[0].length;
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const tex = scene.textures.createCanvas(key, cols * 24, rows * 24)!; const c = tex.getContext();
@@ -147,11 +165,20 @@ export function paintRegionMap(scene: Phaser.Scene, key: string, g: RTile[][], t
       }
       case 'L': {
         px(c, ox, oy, 12, 12, th.path);
+        if (skipDeco) break;
         for (let y = 0; y < 12; y += 4) { px(c, ox, oy + y + 3, 12, 1, th.pathLine); px(c, ox, oy + y, 12, 1, shade(th.path, 0.3)); }
         break;
       }
       case 'H': {
         px(c, ox, oy, 12, 12, th.wood);
+        if (skipDeco) {
+          const vert = (at(tx, ty - 1) === 'H' || at(tx, ty + 1) === 'H') && !(at(tx - 1, ty) === 'H' || at(tx + 1, ty) === 'H');
+          px(c, ox, oy, 12, 12, th.wood);
+          if (vert) for (let y = 0; y < 12; y += 3) { px(c, ox, oy + y, 12, 1, th.woodDark); px(c, ox + 1, oy + y + 1, 10, 1, shade(th.wood, 0.2)); }
+          else for (let x = 0; x < 12; x += 3) { px(c, ox + x, oy, 1, 12, th.woodDark); px(c, ox + x + 1, oy + 1, 1, 10, shade(th.wood, 0.2)); }
+          if (vert) { px(c, ox, oy, 1, 12, th.woodDark); px(c, ox + 11, oy, 1, 12, th.woodDark); } else { px(c, ox, oy, 12, 1, th.woodDark); px(c, ox, oy + 11, 12, 1, th.woodDark); }
+          break;
+        }
         for (let x = 0; x < 12; x += 4) px(c, ox + x, oy, 1, 12, th.woodDark);
         if (!['H'].includes(at(tx, ty - 1)) && at(tx, ty - 1) !== '=' ) px(c, ox, oy, 12, 1, th.woodDark);
         break;
@@ -193,6 +220,7 @@ export function paintRegionMap(scene: Phaser.Scene, key: string, g: RTile[][], t
   // 2패스: 위로 솟는 것 (나무·덤불·울타리·가로등·수정·바위·덩굴·벤치·표지판)
   for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
     const t = vis(g[ty][tx]); const ox = tx * 12, oy = ty * 12;
+    if (skipDeco && DECO_TILES.has(t) && t !== 'H' && t !== 'L') continue;
     switch (t) {
       case 'T': {
         const [l, m, d] = th.tree;
@@ -259,7 +287,7 @@ export function makeSky(scene: Phaser.Scene, key: string, th: Theme) {
 
 // ───────────── 큰 소품 ─────────────
 
-export interface Prop { k: string; x: number; y: number; w: number; h: number; walk?: boolean; posts?: boolean; color?: string; label?: string; text?: string }
+export interface Prop { k: string; x: number; y: number; w: number; h: number; walk?: boolean; posts?: boolean; color?: string; label?: string; text?: string; art?: string; fit?: number; sink?: number }
 
 /** 소품마다 위로 솟는 높이 (타일) */
 const UP: Record<string, number> = {
