@@ -2,7 +2,7 @@
 import Phaser from 'phaser';
 import { newSave, SaveManager, type SaveData } from './SaveManager';
 import { Story1 } from './StoryRunner';
-import { charById, type CharId } from '../data/characters';
+import { charById, CHAR_IDS, type CharId } from '../data/characters';
 
 export const Bus = new Phaser.Events.EventEmitter();
 
@@ -29,10 +29,18 @@ class GameStateImpl {
     return SaveManager.save(this.data);
   }
 
+  /** 맵 둘러보기: 9명 모두 합류, 시간·저장 없음 */
+  startPreview() {
+    this.startNew('rumung');
+    this.data.party = [...CHAR_IDS];
+    Object.assign(this.data.flags, { preview: true, 'mq.gather': true, 'mq.cloud': true });
+  }
+
   get leader() { return this.data.leader; }
 
   /** 72시간 타이머 소모. 0이 되면 초기화 엔딩 */
   spend(hours: number, reason: string) {
+    if (this.data.flags.preview) return;
     this.data.hoursLeft = Math.max(0, this.data.hoursLeft - hours);
     Bus.emit('hud-refresh');
     Bus.emit('time-spent', hours, reason);

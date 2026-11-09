@@ -4,6 +4,7 @@ import { makeProps } from '../gfx/paint';
 
 const urls = import.meta.glob('../assets/chars/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const url = (name: string) => urls[`../assets/chars/${name}.png`];
+const propUrls = import.meta.glob('../assets/props/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const walkUrls = import.meta.glob('../assets/walk/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 
 export class BootScene extends Phaser.Scene {
@@ -14,6 +15,8 @@ export class BootScene extends Phaser.Scene {
     const bar = this.add.rectangle(W / 2 - 150, H / 2, 0, 8, 0xffd66b).setOrigin(0, 0.5);
     this.add.rectangle(W / 2, H / 2, 304, 14).setStrokeStyle(2, 0xf5f0ff);
     this.load.on('progress', (p: number) => bar.setSize(300 * p, 8));
+    // 디자인 소품 PNG: assets/props/<소품이름>.png (예: ferris.png, house_e7799b.png)
+    for (const [path, u] of Object.entries(propUrls)) this.load.image(`propimg_${path.split('/').pop()!.replace('.png', '')}`, u);
     for (const id of CHAR_IDS) {
       this.load.image(`${id}_field`, url(`${id}_field`));
       this.load.image(`${id}_card`, url(`${id}_card`));

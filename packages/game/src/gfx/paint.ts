@@ -226,5 +226,10 @@ export function makeQuestProps(scene: Phaser.Scene) {
     px(c, 2, 4, 9, 6, '#fff8e8'); px(c, 2, 4, 9, 1, '#e5cbb8'); px(c, 3, 5, 1, 1, '#e5cbb8'); px(c, 9, 5, 1, 1, '#e5cbb8');
     px(c, 4, 6, 1, 1, '#e5cbb8'); px(c, 8, 6, 1, 1, '#e5cbb8'); px(c, 5, 7, 3, 1, '#e5cbb8'); px(c, 6, 8, 1, 1, '#ff7aa8');
   });
+  ct('vine', 24, 24, c => {
+    px(c, 0, 0, 12, 12, '#5d4a52');
+    for (let i = 0; i < 12; i += 3) { px(c, i, 0, 1, 12, '#3f2f36'); px(c, i + 1, (i * 5) % 9, 2, 1, '#8a8a7a'); px(c, i + 2, (i * 7) % 11, 1, 2, '#6f6f60'); }
+    px(c, 4, 5, 1, 1, '#c9a0dc'); px(c, 8, 8, 1, 1, '#c9a0dc');
+  });
   ct('skystar', 16, 16, c => { px(c, 3, 0, 2, 8, '#fff6d6'); px(c, 0, 3, 8, 2, '#fff6d6'); px(c, 3, 3, 2, 2, '#ffffff'); });
 }

@@ -1,5 +1,5 @@
 // BGM·효과음. 음원 파일 없이 WebAudio로 칩튠을 직접 합성한다. (P6에서 실제 음원으로 교체 가능)
-type Track = 'title' | 'village';
+type Track = 'title' | 'village' | 'night';
 type Sfx = 'blip' | 'get' | 'quest' | 'cloud' | 'dash' | 'switch' | 'glitch' | 'menu' | 'star' | 'save';
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
@@ -19,6 +19,16 @@ const VILLAGE = {
     { bass: 48, chord: [60, 64, 67], mel: [84, 0, 0, 0, 0, 0] },
   ],
 };
+// 밤 지역: 느린 단조 오르골
+const NIGHT = {
+  bpm: 84, steps: 6,
+  bars: [
+    { bass: 45, chord: [57, 60, 64], mel: [76, 0, 72, 0, 69, 0] },
+    { bass: 41, chord: [53, 57, 60], mel: [77, 0, 76, 0, 72, 0] },
+    { bass: 43, chord: [55, 59, 62], mel: [74, 0, 71, 0, 67, 0] },
+    { bass: 40, chord: [52, 56, 59], mel: [76, 0, 75, 0, 71, 0] },
+  ],
+};
 // 타이틀: 느린 아르페지오
 const TITLE = {
   bpm: 76, steps: 8,
@@ -30,7 +40,19 @@ const TITLE = {
   ],
 };
 
+/** 음원 파일이 있으면 합성음 대신 재생: assets/audio/bgm/<키>.ogg|mp3|m4a */
+const FILES = import.meta.glob('../assets/audio/bgm/*.{ogg,mp3,m4a,wav}', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const fileFor = (k: string) => Object.entries(FILES).find(([p]) => p.split('/').pop()!.replace(/\.[^.]+$/, '') === k)?.[1];
+/** 음원이 없을 때 쓰는 합성곡 */
+const FALLBACK: Record<string, Track> = {
+  title: 'title', village: 'village', cloud: 'village', studio: 'title', lastsave: 'title',
+  mirror: 'night', garden: 'night', shadow: 'night', data: 'night',
+  park: 'village', station: 'village', photo: 'village', trash: 'village',
+};
+
 class AudioImpl {
+  private el?: HTMLAudioElement;
+  private wanted: string | null = null;
   private ctx?: AudioContext;
   private master?: GainNode;
   private music?: GainNode;
@@ -61,6 +83,7 @@ class AudioImpl {
     this.muted = m;
     try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* 무시 */ }
     if (this.master) this.master.gain.value = m ? 0 : 0.5;
+    if (this.el) this.el.volume = m ? 0 : 0.45;
   }
 
   private tone(f: number, t: number, dur: number, type: OscillatorType, vol: number, out?: AudioNode, to?: number) {
@@ -76,7 +99,21 @@ class AudioImpl {
     s.connect(f); f.connect(g); g.connect(this.master!); s.start(t); s.stop(t + dur + 0.02);
   }
 
-  bgm(name: Track | null) {
+  bgm(key: string | null) {
+    if (key === this.wanted) return;
+    this.wanted = key;
+    const url = key ? fileFor(key) : undefined;
+    if (this.el) { this.el.pause(); this.el = undefined; }
+    if (url) {
+      this.stopSynth();
+      const el = new window.Audio(url); el.loop = true; el.volume = this.muted ? 0 : 0.45; this.el = el;
+      el.play().catch(() => { const go = () => { if (this.el === el) el.play().catch(() => {}); }; window.addEventListener('pointerdown', go, { once: true }); window.addEventListener('keydown', go, { once: true }); });
+      return;
+    }
+    this.synth(key ? (FALLBACK[key] ?? 'village') : null);
+  }
+  private stopSynth() { this.track = null; if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
+  private synth(name: Track | null) {
     if (name === this.track) return;
     this.track = name;
     if (this.timer) { clearInterval(this.timer); this.timer = undefined; }
@@ -88,12 +125,12 @@ class AudioImpl {
   }
   private pump() {
     if (!this.ctx || !this.track) return;
-    const song = this.track === 'title' ? TITLE : VILLAGE;
+    const song = this.track === 'title' ? TITLE : this.track === 'night' ? NIGHT : VILLAGE;
     const stepDur = 60 / song.bpm / 2;
     while (this.nextT < this.ctx.currentTime + 0.2) {
       const bar = song.bars[Math.floor(this.step / song.steps) % song.bars.length], i = this.step % song.steps, t = this.nextT;
       const m = bar.mel[i];
-      if (this.track === 'village') {
+      if (this.track === 'village' || this.track === 'night') {
         if (m) { this.tone(mtof(m), t, 0.5, 'triangle', 0.22, this.music); this.tone(mtof(m + 12), t, 0.25, 'sine', 0.05, this.music); }
         if (i === 0) this.tone(mtof(bar.bass), t, stepDur * 2, 'triangle', 0.3, this.music);
         if (i === 2 || i === 4) bar.chord.forEach(n => this.tone(mtof(n), t, stepDur * 1.4, 'square', 0.018, this.music));

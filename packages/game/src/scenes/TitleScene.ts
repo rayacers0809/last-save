@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 import { Input } from '../systems/InputManager';
 import { SaveManager } from '../systems/SaveManager';
 import { GameState } from '../systems/GameState';
-import { FONT, FONT_B } from './UIScene';
+import { FONT, FONT_B, UIState } from './UIScene';
 import { CHAR_IDS } from '../data/characters';
 import { isTouchDevice } from '../ui/TouchPad';
 import { Audio } from '../systems/AudioManager';
+import { Bus } from '../systems/GameState';
+import { MAP_ORDER } from '../world/maps';
 
 const W = 960, H = 540;
 
@@ -44,7 +46,12 @@ export class TitleScene extends Phaser.Scene {
 
     const save = await SaveManager.load();
     this.opts = [{ label: '새로 시작', act: () => this.scene.start('Select') }];
+    const browse = { label: '맵 둘러보기', act: () => Bus.emit('menu', '맵 둘러보기', [
+      ...MAP_ORDER.map(m => ({ label: `${m.act === 5 ? '시크릿' : m.act === 0 ? '프롤로그' : m.act + '막'} · ${m.name}`, act: () => { GameState.startPreview(); this.scene.start('World', { from: 'travel', map: m.id }); } })),
+      { label: '닫기', act: () => {} },
+    ], '9명 모두 데리고 자유롭게 걸어 볼 수 있어요. 시간이 흐르지 않고 저장되지 않아요.') };
     if (save) this.opts.push({ label: '이어하기', act: () => { GameState.loadFrom(save); this.scene.start('World', { from: 'load' }); } });
+    this.opts.push(browse);
     this.texts = this.opts.map((o, i) => {
       const t = this.add.text(W / 2, 196 + i * 40, o.label, { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' })
         .setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -61,7 +68,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   update() {
-    if (!this.texts.length) return;
+    if (!this.texts.length || UIState.busy) return;
     if (Input.take('up')) { this.idx = (this.idx + this.opts.length - 1) % this.opts.length; this.paint(); }
     if (Input.take('down')) { this.idx = (this.idx + 1) % this.opts.length; this.paint(); }
     if (Input.take('confirm')) this.opts[this.idx].act();

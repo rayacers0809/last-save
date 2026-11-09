@@ -11,6 +11,8 @@ import {
 import { paintMap, makeFolk, makeQuestProps } from '../gfx/paint';
 import { questLog, ITEM_NAMES } from '../data/quests';
 import { Audio } from '../systems/AudioManager';
+import { REGIONS, regionById, MAP_ORDER, BLOCK, type RegionMap } from '../world/maps';
+import { THEMES, paintRegionMap, makeSky, propTexture, propUp } from '../gfx/region';
 import { SaveManager } from '../systems/SaveManager';
 import { runDialogue, toast, UIState, FONT } from './UIScene';
 import { glitchBurst } from './PrologueScene';
@@ -26,7 +28,15 @@ const key = (x: number, y: number) => `${x},${y}`;
 const feetOf = (s: { x: number; y: number }) => ({ x: s.x * TILE + TILE / 2, y: (s.y + 1) * TILE - 2 });
 
 export class WorldScene extends Phaser.Scene {
-  private grid: Tile[][] = [];
+  private grid: string[][] = [];
+  private mapId = 'cloud';
+  private region?: RegionMap;
+  private cols = COLS;
+  private rows = ROWS;
+  private pointSpot = POINT_SPOT;
+  private signs: { x: number; y: number; text: string }[] = SIGNS;
+  private vines = new Map<string, Phaser.GameObjects.Image>();
+  private preview = false;
   private bridges = new Map<string, Phaser.GameObjects.Image>();
   private rocks = new Map<string, Phaser.GameObjects.Image>();
   private actors = new Map<CharId, Actor>();
@@ -50,22 +60,103 @@ export class WorldScene extends Phaser.Scene {
 
   constructor() { super('World'); }
 
-  create(data: { from: 'new' | 'load' }) {
+  create(data: { from: 'new' | 'load' | 'travel'; map?: string }) {
     const d = GameState.data;
-    this.grid = buildGrid();
-    for (const k of d.brokenRocks) { const [x, y] = k.split(',').map(Number); this.grid[y][x] = '='; }
+    this.mapId = data.map ?? (d.flags.map as string) ?? 'cloud';
+    d.flags.map = this.mapId;
+    this.preview = !!d.flags.preview;
+    this.region = regionById(this.mapId);
+    let props: import('../gfx/region').Prop[] = [];
+    if (this.region) { const built = this.region.build(); this.grid = built.grid as string[][]; props = built.props; this.cols = this.region.cols; this.rows = this.region.rows; this.pointSpot = this.region.point ?? POINT_SPOT; this.signs = this.region.signs; }
+    else { this.grid = buildGrid(); this.cols = COLS; this.rows = ROWS; this.pointSpot = POINT_SPOT; this.signs = SIGNS; }
+    for (const k of d.brokenRocks) {
+      const [m, xy] = k.includes(':') ? k.split(':') : ['cloud', k];
+      if (m !== this.mapId) continue;
+      const [x, y] = xy.split(',').map(Number); this.grid[y][x] = '=';
+    }
+    for (const k of Object.keys(d.flags)) if (k.startsWith(`bloom:${this.mapId}:`)) { const [x, y] = k.split(':')[2].split(',').map(Number); this.grid[y][x] = ','; }
+    this.vines.clear();
+    GameState.setFlag(`visit.${this.mapId}`);
     this.bridges.clear(); this.rocks.clear(); this.actors.clear(); this.npcs = []; this.notes = []; this.flowers = []; this.hist = []; this.glitchCount = 0; this.lock = false; this.folks = []; this.pickups = []; this.pendingRest = false; this.skyStar = undefined;
 
-    this.cameras.main.setBackgroundColor('#a9b6ff');
-    this.sky = this.add.tileSprite(0, 0, 960, 540, 'sky').setOrigin(0).setScrollFactor(0).setDepth(-20);
-    this.far = this.add.tileSprite(0, 300, 960, 96, 'farcloud').setOrigin(0).setScrollFactor(0).setDepth(-19).setAlpha(0.8);
-    paintMap(this, 'map_cloud', this.grid);
-    this.add.image(0, 0, 'map_cloud').setOrigin(0).setDepth(-10);
-
-    // 바위
-    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (this.grid[y][x] === 'X') {
-      this.rocks.set(key(x, y), this.add.image(x * TILE, y * TILE, 'rock').setOrigin(0).setDepth((y + 1) * TILE));
+    if (this.region) {
+      const th = THEMES[this.region.theme];
+      makeSky(this, `sky_${this.region.theme}`, th);
+      this.cameras.main.setBackgroundColor(th.sky[1]);
+      this.sky = this.add.tileSprite(0, 0, 960, 540, `sky_${this.region.theme}`).setOrigin(0).setScrollFactor(0).setDepth(-20);
+      this.far = this.add.tileSprite(0, 300, 960, 96, 'farcloud').setOrigin(0).setScrollFactor(0).setDepth(-19).setAlpha(th.edge === 'cliff' ? 0.35 : 0.8).setVisible(th.edge !== 'indoor');
+      if (th.moon) { const m = this.add.circle(760, 90, 46, 0xf3e6ff).setScrollFactor(0.05).setDepth(-19).setAlpha(0.9); this.add.circle(760, 90, 70, 0xd3a9e1, 0.15).setScrollFactor(0.05).setDepth(-19); m.setStrokeStyle(4, 0xffffff, 0.4); }
+      paintRegionMap(this, `map_${this.mapId}`, this.grid as any, th, this.region.secretAs);
+      const night: Record<string, number> = { mirror: 0.16, garden: 0.22, shadow: 0.2, data: 0.1, studio: 0.08 };
+      if (night[this.mapId]) this.add.rectangle(0, 0, 960, 540, Phaser.Display.Color.HexStringToColor(th.sky[0]).color, night[this.mapId]).setOrigin(0).setScrollFactor(0).setDepth(8000);
+      this.add.image(0, 0, `map_${this.mapId}`).setOrigin(0).setDepth(-10);
+      // 소품: 디자인 PNG(assets/props/<이름>.png)가 있으면 그걸, 없으면 코드로 그린 임시 그림
+      props.forEach((p, i) => {
+        const up = propUp(p.k), w = p.w * TILE, h = (p.h + up) * TILE;
+        let tex = `propimg_${p.k}${p.color ? '_' + p.color.slice(1) : ''}`;
+        if (!this.textures.exists(tex)) tex = this.textures.exists(`propimg_${p.k}`) ? `propimg_${p.k}` : '';
+        if (!tex) { tex = `prop_${this.mapId}_${i}`; propTexture(this, tex, p, th); }
+        const img = this.add.image(p.x * TILE, (p.y + p.h) * TILE, tex).setOrigin(0, 1).setDisplaySize(w, h);
+        img.setDepth(p.walk ? -5 : (p.y + p.h) * TILE - 1);
+      });
+    } else {
+      this.cameras.main.setBackgroundColor('#a9b6ff');
+      this.sky = this.add.tileSprite(0, 0, 960, 540, 'sky').setOrigin(0).setScrollFactor(0).setDepth(-20);
+      this.far = this.add.tileSprite(0, 300, 960, 96, 'farcloud').setOrigin(0).setScrollFactor(0).setDepth(-19).setAlpha(0.8);
+      paintMap(this, 'map_cloud', this.grid as Tile[][]);
+      this.add.image(0, 0, 'map_cloud').setOrigin(0).setDepth(-10);
     }
+
+    // 바위 · 덩굴
+    for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
+      if (this.grid[y][x] === 'X') this.rocks.set(key(x, y), this.add.image(x * TILE, y * TILE, 'rock').setOrigin(0).setDepth((y + 1) * TILE));
+      if (this.grid[y][x] === 'V') this.vines.set(key(x, y), this.add.image(x * TILE, y * TILE, 'vine').setOrigin(0).setDepth((y + 1) * TILE));
+    }
+    if (this.region) this.buildRegionExtras();
+    else this.buildCloudExtras(d);
+    // 포인트
+    const pf = feetOf(this.pointSpot);
+    this.point = this.add.image(pf.x, pf.y - 20, 'point').setScale(1.4).setDepth(pf.y);
+    this.tweens.add({ targets: this.point, y: pf.y - 28, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.pointBubble = this.add.text(pf.x, pf.y - 64, '★', { fontFamily: FONT, fontSize: '24px', color: '#ffe27a' }).setOrigin(0.5).setDepth(9000);
+    this.tweens.add({ targets: this.pointBubble, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
+
+    // 아직 합류하지 않은 별지기 (구름 마을에서만)
+    if (!this.region) for (const id of CHAR_IDS) if (!d.party.includes(id)) this.spawnNpc(id);
+
+    // 파티
+    const spawnSpot = this.region ? this.region.spawn : START_SPOT;
+    const start = data.from === 'load' && d.pos.x ? d.pos : feetOf(spawnSpot);
+    d.party.forEach((id, i) => this.spawnActor(id, start.x - (i ? 10 : 0), start.y + (i ? 6 : 0)));
+    // 따라오는 동료들이 리더 뒤에 한 줄로 서도록 발자취를 미리 깔아 둔다
+    // 비어 있는 방향으로 발자취를 깐다 (아래 → 위 → 왼쪽 → 오른쪽)
+    const dirs = [[0, 1], [0, -1], [-1, 0], [1, 0]];
+    const free = (dx: number, dy: number) => { let n = 0; for (let k = 4; k <= 140; k += 4) { if (!this.boxFree(start.x + dx * k, start.y + dy * k)) break; n = k; } return n; };
+    const [bx, by] = dirs.reduce((best, d) => free(d[0], d[1]) > free(best[0], best[1]) ? d : best, dirs[0]);
+    const reach = free(bx, by);
+    for (let k = 200; k >= 0; k--) { const kk = Math.min(k, reach); this.hist.push({ x: start.x + bx * kk, y: start.y + by * kk, flip: false }); }
+    d.party.filter(id => id !== d.leader).forEach((id, i) => { const a = this.actors.get(id)!, h = this.hist[this.hist.length - 1 - (i + 1) * FOLLOW_GAP]; a.x = h.x; a.y = h.y; });
+    this.orderActors();
+
+    const lead = this.actors.get(d.leader)!;
+    this.cameras.main.setBounds(Math.min(0, (this.cols * TILE - 960) / 2), Math.min(0, (this.rows * TILE - 540) / 2), Math.max(960, this.cols * TILE), Math.max(540, this.rows * TILE)).startFollow(lead.spr, true, 0.12, 0.12).setRoundPixels(true);
+    this.cameras.main.fadeIn(500, 255, 255, 255);
+
+    Bus.emit('hud', true);
+    const onTag = (t: string) => this.onTag(t);
+    const onSpent = (h: number, why: string) => toast(`⏳ ${why} · ${h}시간 흘렀다`);
+    const onUp = () => this.timeUp();
+    Bus.on('tag', onTag); Bus.on('time-spent', onSpent); Bus.on('time-up', onUp);
+    this.events.once('shutdown', () => { Bus.off('tag', onTag); Bus.off('time-spent', onSpent); Bus.off('time-up', onUp); Bus.emit('hud', false); Bus.emit('ui-reset'); });
+    Audio.bgm(this.region ? this.region.bgm : 'village');
+
+    if (data.from === 'new') this.time.delayedCall(700, () => runDialogue('arrive'));
+    else if (data.from === 'travel') this.time.delayedCall(400, () => toast(`${this.region?.name ?? '구름 위의 마을'}${this.preview ? ' · 둘러보기 모드' : ''}`));
+    else this.time.delayedCall(400, () => toast('이어서 시작해요.'));
+  }
+
+  // ---------- 지역별 구성 ----------
+  private buildCloudExtras(d: typeof GameState.data) {
     // 시계탑
     this.tower = this.add.image(21 * TILE, 12 * TILE, 'tower').setOrigin(0.5, 1).setDepth(12 * TILE);
     if (GameState.flag('mq.gather') && !GameState.flag('mq.cloud')) this.tower.setVisible(false);
@@ -86,45 +177,35 @@ export class WorldScene extends Phaser.Scene {
     // 화단
     this.refreshFlowers();
     // 버그 노트
-    for (const n of BUG_NOTES) if (!d.bugNotes.includes(n.id)) {
+    this.spawnNotes(BUG_NOTES);
+  }
+
+  private spawnNotes(list: { id: string; x: number; y: number; text: string }[]) {
+    const d = GameState.data;
+    for (const n of list) if (!d.bugNotes.includes(n.id)) {
       const spr = this.add.image(n.x * TILE + TILE / 2, n.y * TILE + TILE / 2, 'note').setDepth((n.y + 1) * TILE);
       this.tweens.add({ targets: spr, y: spr.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       this.notes.push({ id: n.id, spr, text: n.text });
     }
-    // 포인트
-    const pf = feetOf(POINT_SPOT);
-    this.point = this.add.image(pf.x, pf.y - 20, 'point').setScale(1.4).setDepth(pf.y);
-    this.tweens.add({ targets: this.point, y: pf.y - 28, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    this.pointBubble = this.add.text(pf.x, pf.y - 64, '★', { fontFamily: FONT, fontSize: '24px', color: '#ffe27a' }).setOrigin(0.5).setDepth(9000);
-    this.tweens.add({ targets: this.pointBubble, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
+  }
 
-    // 아직 합류하지 않은 별지기
-    for (const id of CHAR_IDS) if (!d.party.includes(id)) this.spawnNpc(id);
-
-    // 파티
-    const start = data.from === 'load' && d.pos.x ? d.pos : feetOf(START_SPOT);
-    d.party.forEach((id, i) => this.spawnActor(id, start.x - (i ? 10 : 0), start.y + (i ? 6 : 0)));
-    // 따라오는 동료들이 리더 뒤에 한 줄로 서도록 발자취를 미리 깔아 둔다
-    for (let k = 200; k >= 0; k--) {
-      const y = start.y + k; this.hist.push({ x: start.x, y: this.boxFree(start.x, y) ? y : start.y, flip: false });
+  private regionFolks: { id: string; name: string; lines: string[] }[] = [];
+  private buildRegionExtras() {
+    const r = this.region!;
+    makeQuestProps(this);
+    this.spawnNotes(r.notes);
+    this.regionFolks = [];
+    for (const n of r.npcs) {
+      const id = `${r.id}_${n.id}`;
+      makeFolk(this, `folk_${id}`, n.hat, 'folk');
+      const f = feetOf(n);
+      const spr = this.add.image(f.x, f.y + 2, `folk_${id}`).setOrigin(0.5, 1).setDepth(f.y).setScale(1.2);
+      this.tweens.add({ targets: spr, scaleY: 1.14, duration: 900 + Math.random() * 400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const tag = this.add.text(f.x, f.y + 3, n.name, { fontFamily: FONT, fontSize: '12px', color: '#e6e0ff', stroke: '#1a1438', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(f.y);
+      const mark = this.add.text(f.x, f.y - 62, '…', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#e6e0ff', padding: { x: 5, y: 0 } }).setOrigin(0.5).setDepth(9000);
+      this.folks.push({ id, spr, tag, mark, x: f.x, y: f.y });
+      this.regionFolks.push({ id, name: n.name, lines: n.lines });
     }
-    d.party.filter(id => id !== d.leader).forEach((id, i) => { const a = this.actors.get(id)!, h = this.hist[this.hist.length - 1 - (i + 1) * FOLLOW_GAP]; a.x = h.x; a.y = h.y; });
-    this.orderActors();
-
-    const lead = this.actors.get(d.leader)!;
-    this.cameras.main.setBounds(0, 0, COLS * TILE, ROWS * TILE).startFollow(lead.spr, true, 0.12, 0.12).setRoundPixels(true);
-    this.cameras.main.fadeIn(500, 255, 255, 255);
-
-    Bus.emit('hud', true);
-    const onTag = (t: string) => this.onTag(t);
-    const onSpent = (h: number, why: string) => toast(`⏳ ${why} · ${h}시간 흘렀다`);
-    const onUp = () => this.timeUp();
-    Bus.on('tag', onTag); Bus.on('time-spent', onSpent); Bus.on('time-up', onUp);
-    this.events.once('shutdown', () => { Bus.off('tag', onTag); Bus.off('time-spent', onSpent); Bus.off('time-up', onUp); Bus.emit('hud', false); Bus.emit('ui-reset'); });
-    Audio.bgm('village');
-
-    if (data.from === 'new') this.time.delayedCall(700, () => runDialogue('arrive'));
-    else this.time.delayedCall(400, () => toast('이어서 시작해요.'));
   }
 
   // ---------- 생성 ----------
@@ -150,7 +231,8 @@ export class WorldScene extends Phaser.Scene {
     this.flowers.forEach(f => f.destroy()); this.flowers = [];
     if (!GameState.inParty('haming')) return;
     const kind = String(Story1.getVar('flower') || 'yellow') === 'white' ? 'bloom_white' : 'bloom_yellow';
-    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (this.grid[y][x] === 'f') {
+    if (this.region) return;
+    for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) if (this.grid[y][x] === 'f') {
       const b = this.add.image(x * TILE, y * TILE, kind).setOrigin(0).setDepth((y + 1) * TILE).setScale(1, 0);
       this.tweens.add({ targets: b, scaleY: 1, duration: 400, delay: (x + y) * 30, ease: 'Back.out' });
       this.flowers.push(b);
@@ -158,14 +240,18 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ---------- 지형 ----------
-  private tileAt(px: number, py: number): Tile { const x = Math.floor(px / TILE), y = Math.floor(py / TILE); return (x < 0 || y < 0 || x >= COLS || y >= ROWS) ? ' ' : this.grid[y][x]; }
+  private tileAt(px: number, py: number): string { const x = Math.floor(px / TILE), y = Math.floor(py / TILE); return (x < 0 || y < 0 || x >= this.cols || y >= this.rows) ? ' ' : this.grid[y][x]; }
+  private blocked(t: string) {
+    if (t === 'g') return GameState.data.leader !== 'shiro';
+    return this.region ? BLOCK.has(t as any) : BLOCKING.has(t as Tile);
+  }
   private solidAt(px: number, py: number) {
     const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
     if (this.bridges.has(key(tx, ty))) return false;
-    if (BLOCKING.has(this.tileAt(px, py))) return true;
+    if (this.blocked(this.tileAt(px, py))) return true;
     for (const n of this.npcs) if (Math.abs(n.x - px) < 10 && Math.abs(n.y - 3 - py) < 6) return true;
     for (const n of this.folks) if (Math.abs(n.x - px) < 12 && Math.abs(n.y - 3 - py) < 6) return true;
-    const pf = feetOf(POINT_SPOT);
+    const pf = feetOf(this.pointSpot);
     return Math.abs(pf.x - px) < 10 && Math.abs(pf.y - 3 - py) < 6;
   }
   private boxFree(x: number, y: number) {
@@ -206,8 +292,8 @@ export class WorldScene extends Phaser.Scene {
     const npc = this.npcs.filter(n => near(n.x, n.y, 46)).sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
     if (npc) return this.recruit(npc);
     const folk = this.folks.filter(n => near(n.x, n.y, 46)).sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
-    if (folk) return this.talkFolk(folk.id);
-    const pf = feetOf(POINT_SPOT);
+    if (folk) return this.region ? this.talkRegionFolk(folk.id) : this.talkFolk(folk.id);
+    const pf = feetOf(this.pointSpot);
     if (near(pf.x, pf.y, 48)) {
       this.lock = true; this.pendingRest = false;
       await runDialogue('point_talk');
@@ -215,12 +301,16 @@ export class WorldScene extends Phaser.Scene {
       this.lock = false; return;
     }
     const tf = feetOf(TOWER_SPOT);
-    if (Math.abs(L.x - (tf.x + 12)) < 44 && L.y > tf.y - 10 && L.y < tf.y + 50) return this.towerInteract();
+    if (!this.region && Math.abs(L.x - (tf.x + 12)) < 44 && L.y > tf.y - 10 && L.y < tf.y + 50) return this.towerInteract();
     const fx = Math.floor((L.x + this.face.x * 20) / TILE), fy = Math.floor((L.y - 6 + this.face.y * 20) / TILE);
     if (this.grid[fy]?.[fx] === 'X') return this.rockHint();
-    const sign = SIGNS.find(s => Math.abs(s.x - fx) <= 1 && Math.abs(s.y - fy) <= 1 && near(s.x * TILE + 12, s.y * TILE + 12, 48));
+    const sign = this.signs.find(s => Math.abs(s.x - fx) <= 1 && Math.abs(s.y - fy) <= 1 && near(s.x * TILE + 12, s.y * TILE + 12, 48));
     if (sign) return toast(sign.text);
-    if (this.grid[fy]?.[fx] === 'S' || (Math.abs(L.x - (STATION_SPOT.x + 1) * TILE) < 40 && L.y > STATION_SPOT.y * TILE - 30)) return this.station();
+    const ft = this.grid[fy]?.[fx];
+    const nearS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.grid[Math.floor((L.y - 6) / TILE) + dy]?.[Math.floor(L.x / TILE) + dx] === 'S');
+    if (ft === 'S' || nearS || (!this.region && Math.abs(L.x - (STATION_SPOT.x + 1) * TILE) < 40 && L.y > STATION_SPOT.y * TILE - 30)) return this.station();
+    if (ft === 'V') return toast(GameState.inParty('haming') ? `시든 덩굴. 하밍의 개화라면 길을 틀 수 있을 것 같다. (${SWITCH_HINT(6)})` : '시든 덩굴이 길을 막고 있다.');
+    if (ft === 'g') return toast(GameState.inParty('shiro') ? `좁은 틈. 시로라면 지나갈 수 있을 것 같다. (${SWITCH_HINT(9)})` : '고양이나 지나갈 법한 좁은 틈이다.');
     if (this.grid[fy]?.[fx] === 'f') return toast(GameState.inParty('haming') ? '꽃이 활짝 피었다.' : '시든 화단. 뿌리는 아직 살아 있는 것 같다.');
   }
 
@@ -346,14 +436,39 @@ export class WorldScene extends Phaser.Scene {
     if (anim) this.tweens.add({ targets: this.skyStar, scale: { from: 6, to: 2 }, duration: 800, ease: 'Back.out' });
   }
   private station() {
-    if (!GameState.flag('mq.cloud')) return toast('하늘 정류장. 하늘길이 끊겨 있어 아직 출발할 수 없다.');
-    const soon = () => toast('2막 지역은 다음 업데이트에서 열려요. 지금은 1막까지 플레이할 수 있어요.');
-    Bus.emit('menu', '하늘 정류장 — 어디로 갈까?', [
-      { label: '거울의 숲 (2시간) · 준비 중', act: soon },
-      { label: '멈춰버린 놀이공원 (2시간) · 준비 중', act: soon },
-      { label: '닫기', act: () => {} },
-    ], '이동할 때마다 2시간이 흐른다.');
+    const d = GameState.data;
+    if (!this.region && !GameState.flag('mq.cloud') && !this.preview) return toast('하늘 정류장. 하늘길이 끊겨 있어 아직 출발할 수 없다.');
+    const visited = (id: string) => !!GameState.flag(`visit.${id}`);
+    const avail = (id: string, act: number): string | null => {
+      if (this.preview) return null;
+      if (id === 'studio') return '현실로는 아직 돌아갈 수 없다';
+      if (id === 'cloud') return null;
+      if (act === 2 && (id === 'mirror' || id === 'park')) return GameState.flag('mq.cloud') ? null : '1막을 끝내야 열린다';
+      if (id === 'data') return visited('mirror') && visited('park') ? null : '거울의 숲과 놀이공원을 먼저 둘러보자';
+      return `${act === 5 ? '시크릿' : act + '막'} · 이야기 준비 중`;
+    };
+    const opts = MAP_ORDER.filter(m => m.id !== this.mapId).map(m => {
+      const lock = avail(m.id, m.act);
+      return { label: `${m.name}${lock ? ' 🔒' : ''}`, act: () => lock ? toast(lock) : this.travel(m.id) };
+    });
+    opts.push({ label: '닫기', act: () => {} });
+    Bus.emit('menu', this.preview ? '맵 둘러보기 — 어디로 갈까?' : '하늘 정류장 — 어디로 갈까?', opts, this.preview ? '둘러보기 모드: 시간이 흐르지 않고 저장되지 않아요.' : '이동할 때마다 2시간이 흐른다.');
   }
+  private travel(id: string) {
+    const d = GameState.data;
+    this.lock = true;
+    if (!this.preview) GameState.spend(2, '이동');
+    d.pos = { x: 0, y: 0 };
+    this.cameras.main.fadeOut(400, 255, 255, 255);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ from: 'travel', map: id }));
+  }
+  private async talkRegionFolk(id: string) {
+    const f = this.regionFolks.find(x => x.id === id); if (!f) return;
+    this.lock = true;
+    await new Promise<void>(res => Bus.emit('lines', f.lines.map(t => ({ name: f.name, por: `folk_${id}`, text: t })), res));
+    this.lock = false;
+  }
+
   private async rest() {
     const d = GameState.data;
     const scenes: [string, string[]][] = [['rest_1', ['rumung', 'haming']], ['rest_2', ['dotcha', 'ttuning']], ['rest_3', ['darae', 'eune']], ['rest_4', ['dodamhi', 'shiro']], ['rest_5', ['bigwin']]];
@@ -416,6 +531,7 @@ export class WorldScene extends Phaser.Scene {
     if (t === 'quest') { Audio.sfx('quest'); Bus.emit('hud-refresh'); }
     if (t === 'tower_light') this.restoreTower();
     if (t === 'act_clear') this.time.delayedCall(50, () => this.actClear());
+    if (t === 'save' && this.preview) { toast('둘러보기 모드에서는 저장하지 않아요.'); return; }
     if (t === 'save') {
       this.storePos();
       GameState.save().then(ok => { if (ok) Audio.sfx('save'); toast(ok ? '저장했어요. (이 기기 브라우저)' : '저장에 실패했어요. 브라우저 저장소 설정을 확인해 주세요.'); });
@@ -461,6 +577,8 @@ export class WorldScene extends Phaser.Scene {
     const tx = Math.floor(L.x / TILE), ty = Math.floor((L.y - 4) / TILE);
     if (id === 'rumung') return this.cloudStep(tx, ty);
     if (id === 'dotcha') return this.dash(tx, ty);
+    if (id === 'haming') return this.bloom(tx, ty);
+    if (id === 'shiro') { toast('시로는 고양이 길(좁은 틈)을 그냥 지나갈 수 있어.'); return; }
     const c = charById(id);
     toast(`${c.name}의 「${c.ability}」은 다음 지역부터 쓸 수 있어.`);
   }
@@ -471,11 +589,11 @@ export class WorldScene extends Phaser.Scene {
     let landed = false;
     for (let k = 1; k <= 6; k++) {
       const x = tx + dx * k, y = ty + dy * k;
-      if (x < 0 || y < 0 || x >= COLS || y >= ROWS) break;
+      if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) break;
       const t = this.grid[y][x];
       if (t === ' ' && !this.bridges.has(key(x, y))) { voids.push([x, y]); continue; }
       if (!voids.length) { toast('구름을 띄울 빈 하늘이 없어. 하늘 끝을 바라보고 써 봐.'); return; }
-      landed = !BLOCKING.has(t) || this.bridges.has(key(x, y));
+      landed = !this.blocked(t) || this.bridges.has(key(x, y));
       break;
     }
     if (!voids.length) { toast('구름을 띄울 빈 하늘이 없어. 하늘 끝을 바라보고 써 봐.'); return; }
@@ -495,13 +613,26 @@ export class WorldScene extends Phaser.Scene {
     this.time.delayedCall(12000, expire);
   }
 
+  private bloom(tx: number, ty: number) {
+    const { x: dx, y: dy } = this.face;
+    let hit: [number, number] | null = null;
+    for (let k = 1; k <= 2 && !hit; k++) { const x = tx + dx * k, y = ty + dy * k; if (this.grid[y]?.[x] === 'V') hit = [x, y]; }
+    if (!hit) { toast('피워 낼 덩굴이 없어.'); return; }
+    const [x, y] = hit; const k = key(x, y);
+    this.grid[y][x] = ','; GameState.setFlag(`bloom:${this.mapId}:${k}`);
+    const v = this.vines.get(k); this.vines.delete(k);
+    if (v) this.tweens.add({ targets: v, alpha: 0, duration: 400, onComplete: () => v.destroy() });
+    const fl = this.add.image(x * TILE, y * TILE, 'bloom_yellow').setOrigin(0).setDepth((y + 1) * TILE).setScale(1, 0);
+    this.tweens.add({ targets: fl, scaleY: 1, duration: 400, ease: 'Back.out' });
+    Audio.sfx('star'); toast('개화! 덩굴이 꽃길로 바뀌었다.');
+  }
   private dash(tx: number, ty: number) {
     const { x: dx, y: dy } = this.face;
     let hit: [number, number] | null = null;
     for (let k = 1; k <= 2 && !hit; k++) {
       const x = tx + dx * k, y = ty + dy * k;
       if (this.grid[y]?.[x] === 'X') hit = [x, y];
-      else if (this.grid[y]?.[x] && BLOCKING.has(this.grid[y][x])) break;
+      else if (this.grid[y]?.[x] && this.blocked(this.grid[y][x])) break;
     }
     const L = this.lead;
     this.tweens.add({ targets: L, x: L.x + dx * 10, y: L.y + dy * 10, duration: 90, yoyo: true });
@@ -517,7 +648,7 @@ export class WorldScene extends Phaser.Scene {
     seen.forEach(k => {
       const [x, y] = k.split(',').map(Number);
       this.grid[y][x] = '=';
-      GameState.data.brokenRocks.push(k);
+      GameState.data.brokenRocks.push(this.region ? `${this.mapId}:${k}` : k);
       const r = this.rocks.get(k); this.rocks.delete(k);
       if (r) this.tweens.add({ targets: r, alpha: 0, scale: 1.3, duration: 200, onComplete: () => r.destroy() });
       for (let i = 0; i < 12; i++) {

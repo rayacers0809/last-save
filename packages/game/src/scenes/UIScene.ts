@@ -77,6 +77,10 @@ export class UIScene extends Phaser.Scene {
     this.menuBox = this.add.container(0, 0).setDepth(20).setVisible(false);
 
     Bus.on('dialogue', (knot: string, res: (t: string[]) => void) => this.startDialogue(knot, res));
+    Bus.on('lines', (lines: { name: string; por: string; text: string }[], res: () => void) => {
+      this.extLines = lines.slice(); this.active = true; UIState.busy = true; this.tags = []; this.done = () => res();
+      this.box.setVisible(true); this.step();
+    });
     Bus.on('toast', (t: string) => this.showToast(t));
     Bus.on('hud', (on: boolean) => { this.hud.setVisible(on); this.refreshHud(); });
     Bus.on('hud-refresh', () => this.refreshHud());
@@ -98,7 +102,7 @@ export class UIScene extends Phaser.Scene {
     this.hudAbility.setText(`Q · ${c.ability}`);
     const h = Math.max(0, Math.floor(d.hoursLeft)), m = Math.round((d.hoursLeft - h) * 60);
     this.hudTime.setText(`초기화까지 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    this.hudParty.setText(`별지기 ${d.party.length}/9 · 기억 ${d.memories?.world ?? 0}/8 · 노트 ${d.bugNotes.length}/3`);
+    this.hudParty.setText(`별지기 ${d.party.length}/9 · 기억 ${d.memories?.world ?? 0}/8 · 노트 ${d.bugNotes.length}/30`);
   }
 
   // ---------- 토스트 ----------
@@ -127,7 +131,14 @@ export class UIScene extends Phaser.Scene {
     this.step();
   }
 
+  private extLines: { name: string; por: string; text: string }[] | null = null;
   private step() {
+    if (this.extLines) {
+      const l = this.extLines.shift();
+      if (!l) { this.extLines = null; this.finish(); return; }
+      this.show({ speaker: '__ext', text: l.text, tags: [] }, l);
+      return;
+    }
     const line = Story1.next();
     if (line) { this.show(line); return; }
     const ch = Story1.choices();
@@ -135,7 +146,7 @@ export class UIScene extends Phaser.Scene {
     this.finish();
   }
 
-  private show(l: Line) {
+  private show(l: Line, ext?: { name: string; por: string }) {
     this.tags.push(...l.tags);
     l.tags.forEach(t => Bus.emit('tag', t));
     const who = l.speaker === 'me' ? GameState.data.firstPlayer : l.speaker;
@@ -152,7 +163,8 @@ export class UIScene extends Phaser.Scene {
     }
     let name = '', color = '#ffffff';
     const folk = !CHAR_IDS.includes(who as CharId) && !point && !sys && !narr;
-    if (point) { name = '포인트'; color = '#ffe27a'; }
+    if (ext) { name = ext.name; color = '#cfe0ff'; this.por.setTexture(ext.por).setDisplaySize(94, 104); }
+    else if (point) { name = '포인트'; color = '#ffe27a'; }
     else if (folk) {
       const names: Record<string, string> = { piko: '피코', grandma: '빵집 할머니', nb_a: '구름 주민', nb_b: '구름 주민', nb_c: '구름 주민' };
       name = names[who] ?? '구름 주민'; color = '#cfe0ff';
@@ -207,10 +219,12 @@ export class UIScene extends Phaser.Scene {
     const w = body ? 640 : 460;
     const bodyT = body ? this.add.text(W / 2, 0, body, { fontFamily: FONT, fontSize: '24px', color: '#e6e0ff', lineSpacing: 6, wordWrap: { width: w - 64, useAdvancedWrap: true } }).setOrigin(0.5, 0) : null;
     const bodyH = bodyT ? Math.min(300, bodyT.height) + 20 : 0;
-    const h = 80 + bodyH + opts.length * 44, x = (W - w) / 2, y = Math.max(12, (H - h) / 2);
+    const cols = opts.length > 7 ? 2 : 1, perCol = Math.ceil(opts.length / cols);
+    const w2 = cols === 2 ? Math.max(w, 720) : w;
+    const h = 80 + bodyH + perCol * 44, x = (W - w2) / 2, y = Math.max(12, (H - h) / 2);
     const g = this.add.graphics();
     g.fillStyle(0x0b0820, 0.6).fillRect(0, 0, W, H);
-    g.fillStyle(0x1a1438, 1).fillRect(x, y, w, h).lineStyle(2, 0xf5f0ff, 1).strokeRect(x, y, w, h);
+    g.fillStyle(0x1a1438, 1).fillRect(x, y, w2, h).lineStyle(2, 0xf5f0ff, 1).strokeRect(x, y, w2, h);
     this.menuBox.add(g);
     this.menuBox.add(this.add.text(W / 2, y + 22, title, { fontFamily: FONT_B, fontSize: '24px', color: '#ffd66b' }).setOrigin(0.5, 0));
     if (bodyT) {
@@ -219,7 +233,9 @@ export class UIScene extends Phaser.Scene {
       this.menuBox.add(bodyT);
     }
     opts.forEach((o, i) => {
-      const t = this.add.text(W / 2, y + 68 + bodyH + i * 44, o.label, { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' })
+      const col = Math.floor(i / perCol), row = i % perCol;
+      const cx = cols === 2 ? W / 2 + (col ? 1 : -1) * w2 / 4 : W / 2;
+      const t = this.add.text(cx, y + 68 + bodyH + row * 44, o.label, { fontFamily: FONT, fontSize: cols === 2 ? '20px' : '24px', color: '#f5f0ff' })
         .setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       t.on('pointerover', () => { this.menuIdx = i; this.paintMenu(); });
       t.on('pointerdown', () => { this.menuIdx = i; this.pickMenu(); });
@@ -242,6 +258,8 @@ export class UIScene extends Phaser.Scene {
     if (this.menuBox.visible) {
       if (Input.take('up')) { this.menuIdx = (this.menuIdx + this.menuOpts.length - 1) % this.menuOpts.length; this.paintMenu(); }
       if (Input.take('down')) { this.menuIdx = (this.menuIdx + 1) % this.menuOpts.length; this.paintMenu(); }
+      const per = Math.ceil(this.menuOpts.length / 2);
+      if (this.menuOpts.length > 7 && (Input.take('right') || Input.take('left'))) { this.menuIdx = (this.menuIdx + per) % (per * 2); if (this.menuIdx >= this.menuOpts.length) this.menuIdx = this.menuOpts.length - 1; this.paintMenu(); }
       if (Input.take('confirm')) this.pickMenu();
       if (Input.take('menu')) { const close = this.menuOpts.findIndex(o => o.label === '닫기' || o.label === '계속하기'); if (close >= 0) { this.menuIdx = close; this.pickMenu(); } }
       return;
