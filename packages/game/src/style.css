@@ -1,0 +1,63 @@
+@font-face { font-family: 'Galmuri11'; src: url('./assets/Galmuri11.woff2') format('woff2'); font-display: block; }
+@font-face { font-family: 'Galmuri11Bold'; src: url('./assets/Galmuri11-Bold.woff2') format('woff2'); font-display: block; }
+
+:root { --bg: #0c0920; --panel: #1a1438; --fg: #f5f0ff; --gold: #ffd66b; --line: #4a3d86; color-scheme: dark; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: Galmuri11, system-ui, sans-serif; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+#game { flex: 1; min-height: 0; position: relative; }
+#game canvas { image-rendering: pixelated; }
+
+/* 모바일 버튼 (터치 기기에서만 보임) */
+#touch { display: none; }
+body.touch #touch { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+.tp-stick, .tp-btn, .tp-mem, .tp-sheet { pointer-events: auto; touch-action: none; }
+#touch { --tp-scale: 1; --tp-alpha: .7; }
+.tp-controls { position: absolute; inset: 0; opacity: var(--tp-alpha); }
+.tp-controls[hidden] { display: none; }
+.tp-stick { position: absolute; left: max(20px, env(safe-area-inset-left, 0px)); bottom: max(20px, env(safe-area-inset-bottom, 0px)); width: calc(128px * var(--tp-scale)); height: calc(128px * var(--tp-scale)); border-radius: 50%; background: rgba(26, 20, 56, .45); border: 2px solid rgba(245, 240, 255, .5); }
+.tp-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(245, 240, 255, .75); border: 2px solid #fff; }
+.tp-actions { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: max(24px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 14px; align-items: flex-end; }
+.tp-top { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: max(84px, env(safe-area-inset-top, 0px)); display: flex; gap: 10px; }
+.tp-btn { font-family: Galmuri11Bold, Galmuri11, sans-serif; color: var(--fg); background: rgba(26, 20, 56, .55); border: 2px solid rgba(245, 240, 255, .7); border-radius: 50%; width: calc(68px * var(--tp-scale)); height: calc(68px * var(--tp-scale)); font-size: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; padding: 0; }
+.tp-btn span { font-size: 11px; margin-top: 3px; font-family: Galmuri11, sans-serif; }
+.tp-a { width: calc(78px * var(--tp-scale)); height: calc(78px * var(--tp-scale)); background: rgba(255, 214, 107, .35); border-color: var(--gold); margin-bottom: 26px; }
+.tp-small { width: auto; height: 40px; min-width: 56px; border-radius: 10px; font-size: 14px; padding: 0 12px; }
+.tp-btn.on { transform: scale(.92); background: rgba(255, 214, 107, .6); }
+
+/* 세로 화면: 게임을 위, 버튼을 아래 영역에 */
+@media (orientation: portrait) {
+  body.touch #game { flex: 0 0 auto; height: calc(100vw * 9 / 16); }
+  body.touch #touch { position: relative; flex: 1; inset: auto; }
+  body.touch .tp-stick { width: calc(150px * var(--tp-scale)); height: calc(150px * var(--tp-scale)); bottom: 40px; }
+  body.touch .tp-top { top: 16px; }
+}
+
+/* 캐릭터 바로가기 (숫자키 대신) */
+.tp-party { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; max-width: calc(100% - 360px); overflow-x: auto; padding: 2px; }
+.tp-party[hidden] { display: none; }
+.tp-mem { position: relative; flex: 0 0 auto; width: calc(40px * var(--tp-scale)); height: calc(40px * var(--tp-scale)); padding: 0; border: 2px solid rgba(245, 240, 255, .5); border-radius: 8px; background: rgba(26, 20, 56, .6); overflow: hidden; }
+.tp-mem img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tp-mem b { position: absolute; left: 1px; bottom: 0; font: 11px Galmuri11Bold, sans-serif; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.tp-mem.lead { border-color: var(--c); box-shadow: 0 0 0 2px var(--c); }
+
+/* 모바일 설정창 */
+.tp-sheet { position: absolute; inset: 0; background: rgba(8, 6, 20, .6); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.tp-sheet[hidden] { display: none; }
+.tp-panel { width: min(360px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow: auto; background: var(--panel); border: 2px solid var(--fg); box-shadow: 4px 4px 0 var(--line); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
+.tp-panel h3 { margin: 0; font: 18px Galmuri11Bold, sans-serif; color: var(--gold); }
+.tp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.tp-row[hidden] { display: none; }
+.tp-row input[type=range] { width: 150px; accent-color: var(--gold); }
+.tp-row input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--gold); }
+.tp-seg { display: flex; }
+.tp-seg button, .tp-wide { font: 13px Galmuri11, sans-serif; color: var(--fg); background: #241b4a; border: 2px solid var(--line); padding: 6px 10px; }
+.tp-seg button.sel { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+.tp-close { width: 100%; padding: 10px; background: var(--gold); color: var(--bg); border-color: var(--gold); font-family: Galmuri11Bold, sans-serif; }
+
+/* PC 전체화면 버튼 */
+.pc-fs { position: absolute; right: 12px; bottom: 12px; z-index: 10; font: 12px Galmuri11, sans-serif; color: var(--fg); background: rgba(26, 20, 56, .75); border: 2px solid rgba(245, 240, 255, .6); padding: 6px 10px; cursor: pointer; opacity: .55; transition: opacity .15s; }
+.pc-fs:hover, .pc-fs:focus-visible { opacity: 1; }
+#app:fullscreen { background: var(--bg); }
+@media (orientation: portrait) {
+  body.touch .tp-party { position: absolute; top: 72px; bottom: auto; left: 16px; transform: none; max-width: calc(100% - 32px); flex-wrap: wrap; }
+}
