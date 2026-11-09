@@ -1,39 +1,16 @@
-// 구름 위의 마을 (1막) 맵 데이터. P2에서 Tiled JSON으로 교체 예정.
+// 구름 위의 마을 (1막) 맵 데이터. 지형과 위치는 mapdata/cloud.json (tools/maps에서 생성).
 import type { CharId } from '../data/characters';
 
 import CLOUD from './mapdata/cloud.json';
 export const TILE = 24;
+export const CLOUD_FG: number[][] = (CLOUD as any).fg ?? [];
 export const COLS: number = CLOUD.cols;
 export const ROWS: number = CLOUD.rows;
 const P = (k: string) => { const v = (CLOUD.pos as Record<string, number[]>)[k]; return { x: v[0], y: v[1] }; };
 
-/** 타일 코드
- *  ' ' 하늘(못 지나감)  . 구름 땅  = 돌길  # 벽  ^ 지붕  D 문  * 구름 덤불
- *  f 시든 화단  X 금 간 바위  W 분수  B 게시판  M 지도판  C 단말기  T 시계탑 받침  S 하늘 정류장
- */
-export type Tile = ' ' | '.' | '=' | '#' | '^' | 'D' | '*' | 'f' | 'X' | 'W' | 'B' | 'M' | 'C' | 'T' | 'S' | 'L';
-
-export const BLOCKING = new Set<Tile>([' ', '#', '^', 'D', '*', 'f', 'X', 'W', 'B', 'M', 'C', 'T', 'S']);
-
-export interface Building { x0: number; y0: number; x1: number; y1: number; roof: string; name: string }
-export const BUILDINGS: Building[] = [
-  { x0: 4, y0: 9, x1: 9, y1: 12, roof: '#e7799b', name: '빵집' },
-  { x0: 24, y0: 9, x1: 29, y1: 12, roof: '#7fa7e6', name: '도서관' },
-  { x0: 4, y0: 20, x1: 9, y1: 23, roof: '#8fcf8a', name: '우체국' },
-];
-
-export function buildGrid(): Tile[][] {
-  return CLOUD.grid.map(row => [...row] as Tile[]);
+export function buildGrid(): string[][] {
+  return CLOUD.grid.map(row => [...row]);
 }
-
-/** 꾸밈 요소 (걸을 수 있는 칸 위에만 두지 않는다 — 덤불·지붕 등 막힌 칸이나 가장자리) */
-export interface CloudDeco { k: string; x: number; y: number; w?: number; h?: number }
-export const CLOUD_DECO: CloudDeco[] = [
-  // 벚꽃·하얀 나무 (막힌 덤불 칸 위에 세움)
-  ...[[3, 13], [3, 18], [28, 24], [12, 25], [21, 25], [31, 19], [25, 17], [10, 5], [24, 5], [38, 16]].map(([x, y], i) => ({ k: i % 3 === 1 ? 'tree_white' : 'tree_pink', x, y })),
-];
-/** 가로등 (길가) */
-export const CLOUD_LAMPS: { x: number; y: number }[] = [{ x: 14, y: 14 }, { x: 19, y: 16 }, { x: 14, y: 21 }, { x: 19, y: 24 }, { x: 13, y: 4 }, { x: 21, y: 4 }];
 
 export interface Spot { x: number; y: number } // 타일 좌표 (발 위치 타일)
 

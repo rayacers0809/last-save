@@ -23,7 +23,6 @@ export function runPuzzle(scene: Phaser.Scene, cfg: PuzzleCfg): Promise<PuzzleRe
 export class PuzzleScene extends Phaser.Scene {
   private cfg!: PuzzleCfg;
   private done!: (r: PuzzleResult) => void;
-  private layer!: Phaser.GameObjects.Container;
   private msg!: Phaser.GameObjects.Text;
   private over = false;
   // 공용 상태
@@ -46,7 +45,6 @@ export class PuzzleScene extends Phaser.Scene {
     this.msg = this.add.text(W / 2, H - 92, '', { fontFamily: FONT, fontSize: '24px', color: '#ffffff', align: 'center' }).setOrigin(0.5);
     this.add.text(W / 2, H - 52, '이동: WASD / 조이스틱 · 결정: SPACE / A · 그만두기: ESC / ≡', { fontFamily: FONT, fontSize: '12px', color: '#8d84bd' }).setOrigin(0.5);
     this.gfx = this.add.graphics();
-    this.layer = this.add.container(0, 0);
     const c = this.cfg;
     if (c.kind === 'dial') this.st = c.start ? [...c.start] : c.slots.map(() => 0);
     if (c.kind === 'timing') { this.lives = c.lives; this.newZone(); }

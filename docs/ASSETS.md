@@ -62,7 +62,9 @@
 | `photographer` `master` `lyle` `arcade` `framer` `b07` | 사진사, 역장, 정원사 라일, 오락실 주인, 액자 장인, 안내 로봇 B-07 (3번째 장) |
 | `merchant` `clerk` `porter` `keeper` | 그림자 상인, 매표원(2번째 장), 역무원, 숲지기(4번째 장) |
 
-걷기 시트 칸 크기는 `src/scenes/BootScene.ts`의 `NPC_SHEETS`. 그림이 없는 NPC(거울 정령, 반딧불이, 검은 고양이, 길 잃은 아이)는 코드로 그린 임시 그림을 쓴다.
+| `spirit` `firefly` `cat` `kid` | 거울 정령, 반딧불이, 검은 고양이, 길 잃은 아이 (추가 시트, 표정 3종 포함) |
+
+걷기 시트 칸 크기는 `src/scenes/BootScene.ts`의 `NPC_SHEETS`. 이제 모든 NPC가 받은 그림을 쓴다.
 
 ## 배경음악 — `packages/game/src/assets/audio/bgm/<키>.ogg` (mp3, m4a도 가능)
 

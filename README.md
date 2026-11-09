@@ -73,8 +73,9 @@ npm run build:single   # dist-single/index.html 한 파일 빌드
 | 퍼즐 미니게임 화면 | `src/scenes/PuzzleScene.ts` (순서 · 다이얼 · 타이밍 · 컨베이어 · 수호) |
 | 퀘스트 창 문구 · 아이템 이름 | `src/data/quests.ts` |
 | 캐릭터 이름 · 색 · 능력 이름 | `src/data/characters.ts` |
-| NPC 이름 · 그림 | `src/world/maps.ts`(이름·위치), `src/assets/npc/<id>.png`(필드 그림), `<id>_por_smile/surprise/sad.png`(표정) |
-| 맵 충돌 · 위치 | `tools/maps/config.py` → `python3 tools/maps/build.py` |
+| NPC 이름 · 그림 | `src/world/maps.ts`(이름·대사), `src/assets/npc/<id>.png`(필드 그림), `<id>_por_smile/surprise/sad.png`(표정) |
+| 맵 충돌 · 위치 | `tools/maps/config.py` → `python3 tools/maps/build.py` → `python3 tools/maps/occlusion.py` (가로등·거울 같은 소품 뒤로 캐릭터가 가려지는 조각 다시 만들기) |
+| 막힌 길 검사 | 빌드 후 `dist`를 8766 포트로 띄우고 `python3 tools/test/walk_all.py cloud,mirror,...` (모든 오브젝트·NPC까지 실제로 걸어 봄) |
 | 키 배치 | `src/systems/InputManager.ts` |
 | 저장 구조 | `src/systems/SaveManager.ts` (IndexedDB, 내보내기/가져오기 함수 포함) |
 
@@ -83,3 +84,14 @@ npm run build:single   # dist-single/index.html 한 파일 빌드
 ## 사이트에 붙이기
 
 `src/main.ts`의 `startGame(gameEl, touchEl)`을 Next.js 페이지의 클라이언트 컴포넌트에서 호출하면 된다. 게임 영역 div와 모바일 버튼 div 두 개만 넘기면 됨.
+
+## 사이트 (packages/site)
+
+Next.js 정적 사이트: 타이틀 화면 랜딩, 세이브 슬롯(캐릭터 소개), 세이브리아(막·지역), 조작, `/play/`(게임).
+
+```bash
+cd packages/game && npm install && npm run build   # 게임 먼저
+cd ../site && npm install && npm run build         # out/ 폴더가 완성된 사이트
+```
+
+Cloudflare Pages: 빌드 명령 `cd packages/game && npm ci && npm run build && cd ../site && npm ci && npm run build`, 출력 폴더 `packages/site/out`.

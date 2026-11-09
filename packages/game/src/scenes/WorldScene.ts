@@ -5,14 +5,13 @@ import { Bus, GameState } from '../systems/GameState';
 import { Story1 } from '../systems/StoryRunner';
 import { CHAR_IDS, charById, WALK, DIR_ROW, type CharId, type Dir } from '../data/characters';
 import {
-  TILE, COLS, ROWS, BLOCKING, buildGrid, MEMBER_SPOTS, POINT_SPOT, START_SPOT, BUG_NOTES, SIGNS, type Tile,
-  STAR_PIECES, LETTERS, VILLAGERS, TOWER_SPOT, STATION_SPOT, SQ02_NOTE, HINT_SPOT, TOWER_VEIL,
+  TILE, COLS, ROWS, buildGrid, MEMBER_SPOTS, POINT_SPOT, START_SPOT, BUG_NOTES, SIGNS,
+  STAR_PIECES, LETTERS, VILLAGERS, TOWER_SPOT, SQ02_NOTE, HINT_SPOT, TOWER_VEIL,
 } from '../world/cloudVillage';
-import { paintMap, makeFolk, makeQuestProps } from '../gfx/paint';
+import { makeFolk, makeQuestProps } from '../gfx/paint';
 import { questLog, ITEM_NAMES } from '../data/quests';
 import { Audio } from '../systems/AudioManager';
-import { REGIONS, regionById, MAP_ORDER, BLOCK, MAP_IMG, type RegionMap } from '../world/maps';
-import { THEMES, DECO, paintRegionMap, makeSky, propTexture, propUp } from '../gfx/region';
+import { regionById, MAP_ORDER, BLOCK, MAP_IMG, MAP_FG, type RegionMap } from '../world/maps';
 import { SaveManager } from '../systems/SaveManager';
 import { runDialogue, toast, UIState, FONT } from './UIScene';
 import { glitchBurst } from './PrologueScene';
@@ -24,7 +23,7 @@ import { makeThingTextures } from '../gfx/things';
 import { runPuzzle, type PuzzleCfg } from './PuzzleScene';
 import { FOLK_KIND, folkTexture } from '../data/folks';
 import { regionName, countNotes, NOTE_TOTAL } from '../data/quests';
-import { cloudPos } from '../world/cloudVillage';
+import { cloudPos, CLOUD_FG } from '../world/cloudVillage';
 
 interface ThingInst { def: Thing; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number; key: string; tile: Pt }
 const MQ_OF: Record<string, string> = { cloud: 'mq.cloud', mirror: 'mq.mirror', park: 'mq.park', data: 'mq.datacenter', garden: 'mq.garden', station: 'mq.station', photo: 'mq.photo', shadow: 'mq.shadow', lastsave: 'mq.final' };
@@ -61,8 +60,6 @@ export class WorldScene extends Phaser.Scene {
   private hist: { x: number; y: number; flip: boolean }[] = [];
   private face = { x: 0, y: 1 };
   private abilityCd = 0;
-  private sky!: Phaser.GameObjects.TileSprite;
-  private far!: Phaser.GameObjects.TileSprite;
   private glitchCount = 0;
   private lock = false;
   private folks: { id: string; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number }[] = [];
@@ -82,18 +79,18 @@ export class WorldScene extends Phaser.Scene {
 
   constructor() { super('World'); }
 
-  private bgReady = false;
   private live = false;
   create(data: { from: 'new' | 'load' | 'travel'; map?: string }) {
     const d = GameState.data;
     this.live = false;
     {
       const id = data.map ?? (d.flags.map as string) ?? 'cloud';
-      const url = MAP_IMG[`../assets/maps/${id}.webp`];
-      if (url && !this.textures.exists(`mapimg_${id}`)) {
+      const url = MAP_IMG[`../assets/maps/${id}.webp`], fgUrl = MAP_FG[`../assets/maps/${id}_fg.png`];
+      if ((url && !this.textures.exists(`mapimg_${id}`)) || (fgUrl && !this.textures.exists(`mapfg_${id}`))) {
         this.cameras.main.setBackgroundColor('#0c0920');
         const t = this.add.text(480, 270, '불러오는 중…', { fontFamily: FONT, fontSize: '24px', color: '#c9c0ef' }).setOrigin(0.5).setScrollFactor(0);
-        this.load.image(`mapimg_${id}`, url);
+        if (url && !this.textures.exists(`mapimg_${id}`)) this.load.image(`mapimg_${id}`, url);
+        if (fgUrl && !this.textures.exists(`mapfg_${id}`)) this.load.image(`mapfg_${id}`, fgUrl);
         this.load.once('complete', () => { t.destroy(); this.scene.restart(data); });
         this.load.start();
         return;
@@ -103,8 +100,7 @@ export class WorldScene extends Phaser.Scene {
     d.flags.map = this.mapId;
     this.preview = !!d.flags.preview;
     this.region = regionById(this.mapId);
-    let props: import('../gfx/region').Prop[] = [];
-    if (this.region) { const built = this.region.build(); this.grid = built.grid as string[][]; props = built.props; this.cols = this.region.cols; this.rows = this.region.rows; this.pointSpot = this.region.point ?? POINT_SPOT; this.signs = this.region.signs; }
+    if (this.region) { this.grid = this.region.grid.map(r => [...r]); this.cols = this.region.cols; this.rows = this.region.rows; this.pointSpot = this.region.point ?? POINT_SPOT; this.signs = this.region.signs; }
     else { this.grid = buildGrid(); this.cols = COLS; this.rows = ROWS; this.pointSpot = POINT_SPOT; this.signs = SIGNS; }
     for (const k of d.brokenRocks) {
       const [m, xy] = k.includes(':') ? k.split(':') : ['cloud', k];
@@ -119,9 +115,16 @@ export class WorldScene extends Phaser.Scene {
     const img = this.region ? this.region.image : MAP_IMG['../assets/maps/cloud.webp'];
     const texKey = `mapimg_${this.mapId}`;
     this.cameras.main.setBackgroundColor('#0c0920');
-    this.sky = this.add.tileSprite(0, 0, 960, 540, 'pixel').setOrigin(0).setScrollFactor(0).setDepth(-20).setVisible(false);
-    this.far = this.add.tileSprite(0, 0, 960, 540, 'pixel').setOrigin(0).setScrollFactor(0).setDepth(-19).setVisible(false);
     if (img && this.textures.exists(texKey)) this.add.image(0, 0, texKey).setOrigin(0).setDepth(-10);
+    // 가림 조각: 캐릭터 발이 밑동보다 뒤(위쪽)에 있으면 이 조각이 캐릭터를 덮는다
+    const fgKey = `mapfg_${this.mapId}`;
+    if (this.textures.exists(fgKey)) {
+      const tex = this.textures.get(fgKey);
+      (this.region ? this.region.fg : CLOUD_FG).forEach(([x, y, w, h, base, ax, ay], i) => {
+        const fr = `p${i}`; if (!tex.has(fr)) tex.add(fr, 0, ax, ay, w, h);
+        this.add.image(x, y, fgKey, fr).setOrigin(0).setDepth(base - 2);
+      });
+    }
     this.markSpecialTiles();
     // 바위 · 덩굴
     for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
@@ -141,7 +144,6 @@ export class WorldScene extends Phaser.Scene {
     this.errorOverlay();
     this.modeText = this.add.text(480, 92, '', { fontFamily: FONT, fontSize: '24px', color: '#ffd66b', backgroundColor: '#1a1438dd', padding: { x: 10, y: 4 } }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(9800).setVisible(false);
     if (this.script?.dark) this.makeDark();
-    this.bgReady = !!img && this.textures.exists(texKey);
     this.live = true;
     // 포인트
     const pf = feetOf(this.pointSpot);
@@ -326,7 +328,7 @@ export class WorldScene extends Phaser.Scene {
   private tileAt(px: number, py: number): string { const x = Math.floor(px / TILE), y = Math.floor(py / TILE); return (x < 0 || y < 0 || x >= this.cols || y >= this.rows) ? ' ' : this.grid[y][x]; }
   private blocked(t: string) {
     if (t === 'g') return GameState.data.leader !== 'shiro';
-    return this.region ? BLOCK.has(t as any) : BLOCKING.has(t as Tile);
+    return BLOCK.has(t);
   }
   private solidAt(px: number, py: number) {
     const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
@@ -349,7 +351,6 @@ export class WorldScene extends Phaser.Scene {
     if (id === d.leader || !d.party.includes(id) || (this.lock && !force)) return;
     const ep = EPISODES.find(e => GameState.flag(`ep.${e.id}.active`));
     if (ep && ep.map === this.mapId && !force && id !== ep.id) { toast(`에피소드 중에는 ${charById(ep.id).name}(이)가 리더야.`); return; }
-    if (this.chaseState && !force && !['shiro', 'haming'].includes(id) && false) return;
     const a = this.lead, b = this.actors.get(id)!;
     // 새 리더가 지금 자리를 이어받고, 이전 리더는 바로 뒤에 선다
     const bx = b.x, by = b.y;
@@ -540,7 +541,6 @@ export class WorldScene extends Phaser.Scene {
     if (anim) this.tweens.add({ targets: this.skyStar, scale: { from: 9, to: 3 }, duration: 800, ease: 'Back.out' });
   }
   private station() {
-    const d = GameState.data;
     if (!this.region && !GameState.flag('mq.cloud') && !this.preview) return toast('하늘 정류장. 하늘길이 끊겨 있어 아직 출발할 수 없다.');
     const visited = (id: string) => !!GameState.flag(`visit.${id}`);
     const avail = (id: string, act: number): string | null => {
@@ -1107,7 +1107,7 @@ export class WorldScene extends Phaser.Scene {
     const f = new Int32Array(W * H).fill(-1);
     const sx = Math.floor(L.x / TILE), sy = Math.floor((L.y - 4) / TILE);
     const q = [sx + sy * W]; f[q[0]] = 0;
-    const pass = (t: string) => !BLOCK.has(t as any) && t !== 'g' && t !== ' ';
+    const pass = (t: string) => !BLOCK.has(t) && t !== 'g' && t !== ' ';
     for (let i = 0; i < q.length; i++) {
       const c = q[i], x = c % W, y = (c / W) | 0;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -1211,8 +1211,6 @@ export class WorldScene extends Phaser.Scene {
   update(_t: number, dms: number) {
     if (!this.live) return;
     const dt = Math.min(0.05, dms / 1000);
-    this.sky.tilePositionX = this.cameras.main.scrollX * 0.1;
-    this.far.tilePositionX += dt * 6;
     this.abilityCd = Math.max(0, this.abilityCd - dt);
     this.boost = Math.max(0, this.boost - dt);
 
@@ -1232,7 +1230,7 @@ export class WorldScene extends Phaser.Scene {
       const ax0 = Input.axis(); const ax = this.mirrored ? { x: -ax0.x, y: ax0.y } : ax0;
       if (ax.x || ax.y) {
         moving = true;
-        const sp = (Input.running() ? RUN : SPEED) * ((window as any).__SPEED ?? 1) * (GameState.equipped('acc_feather') ? 1.1 : 1) * (this.boost > 0 ? 1.7 : 1);
+        const sp = (Input.running() ? RUN : SPEED) * ((window as any).__DEBUG ? (window as any).__SPEED ?? 1 : 1) * (GameState.equipped('acc_feather') ? 1.1 : 1) * (this.boost > 0 ? 1.7 : 1);
         const nx = L.x + ax.x * sp * dt, ny = L.y + ax.y * sp * dt;
         const mx = this.boxFree(nx, L.y), my = this.boxFree(L.x, ny);
         if (mx) L.x = nx;

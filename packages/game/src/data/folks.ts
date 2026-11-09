@@ -14,7 +14,8 @@ const CLOUD_FOLK = ['piko', 'grandma', 'nb_a', 'nb_b', 'nb_c'];
 /** 필드에 세울 그림. 받은 NPC 그림이 있으면 그걸, 없으면 코드로 그린 임시 그림 */
 export function folkTexture(scene: Phaser.Scene, id: string): { key: string; height: number; tint?: boolean } {
   if (CLOUD_FOLK.includes(id) && scene.textures.exists('npc_folk')) return { key: 'npc_folk', height: 70, tint: id !== 'nb_a' };
-  if (scene.textures.exists(`npc_${id}`)) return { key: `npc_${id}`, height: 80 };
+  const H: Record<string, number> = { cat: 46, firefly: 62, kid: 66, spirit: 78 };
+  if (scene.textures.exists(`npc_${id}`)) return { key: `npc_${id}`, height: H[id] ?? 80 };
   return { key: `folk_${id}`, height: 0 };
 }
 /** 대화창 초상화. 표정(smile·surprise·sad)이 있으면 고른다 */

@@ -7,7 +7,7 @@ const url = (name: string) => urls[`../assets/chars/${name}.png`];
 const decoUrls = import.meta.glob('../assets/deco/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const npcUrls = import.meta.glob('../assets/npc/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 /** NPC 걷기 시트 칸 크기 (3프레임 × 4방향: 아래·왼쪽·오른쪽·위) */
-export const NPC_SHEETS: Record<string, [number, number]> = { point: [54, 60], cron: [46, 64], folk: [49, 61] };
+export const NPC_SHEETS: Record<string, [number, number]> = { point: [54, 60], cron: [47, 64], folk: [49, 61], spirit: [64, 66], firefly: [72, 65], cat: [59, 66], kid: [55, 63] };
 const walkUrls = import.meta.glob('../assets/walk/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 
 export class BootScene extends Phaser.Scene {

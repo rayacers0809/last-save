@@ -13,7 +13,7 @@ async def main():
         pg=await b.new_page(viewport={'width':960,'height':540}); errs=[]
         pg.on('pageerror', lambda e: errs.append(str(e)))
         ev=pg.evaluate
-        await pg.goto('http://localhost:8766/index.html'); await pg.wait_for_timeout(2500); await ev(H); await ev(B)
+        await pg.goto('http://localhost:8766/index.html?debug'); await pg.wait_for_timeout(2500); await ev(H); await ev(B)
         await pg.keyboard.press('Space'); await pg.wait_for_timeout(600); await pg.keyboard.press('Space'); await pg.wait_for_timeout(1500)
         await ev("__T.drain(20000)"); await pg.wait_for_timeout(2500); await ev("__T.drain(10000)")
         await ev("""(()=>{const d=__GS.data;d.party=['rumung','dodamhi','dotcha','ttuning','bigwin','haming','darae','eune','shiro'];d.flags.preview=true;Object.assign(d.flags,{'mq.gather':true,'mq.cloud':true});__T.travel('cloud');})()"""); await pg.wait_for_timeout(3500)

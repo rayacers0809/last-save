@@ -40,7 +40,6 @@ function chest(map: string, at: Anchor, reward: number): Thing {
     ability: { bigwin: c => { if (!c.bw()) return; set(`${map}.chest`); c.give('starShard', reward); c.fx('star'); c.toast(`상자가 열렸다! 별조각 ${reward}개.`); c.refresh(); } },
   };
 }
-const ring = (sign: string, r: number, n: number): Anchor[] => Array.from({ length: n }, (_, i) => ({ sign, dx: Math.round(Math.cos(i / n * Math.PI * 2) * r), dy: Math.round(Math.sin(i / n * Math.PI * 2) * r * 0.7) }));
 const far = (a: number, n: number): Anchor[] => Array.from({ length: n }, (_, i) => ({ far: a + i }));
 
 // ═════════════════════════ 거울의 숲 ═════════════════════════

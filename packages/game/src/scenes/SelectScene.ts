@@ -5,7 +5,7 @@ import { GameState } from '../systems/GameState';
 import { FONT, FONT_B } from './UIScene';
 import { starfield } from './TitleScene';
 
-const W = 960, H = 540, CW = 98, GAP = 6;
+const W = 960, CW = 98, GAP = 6;
 
 export class SelectScene extends Phaser.Scene {
   private idx = 0;

@@ -27,9 +27,8 @@ export function startGame(parent: HTMLElement, touchRoot?: HTMLElement) {
     scene: [BootScene, TitleScene, SelectScene, PrologueScene, WorldScene, EndingScene, UIScene, PuzzleScene],
   });
   game.events.on(Phaser.Core.Events.POST_STEP, () => Input.endFrame());
-  (window as any).__LS = game; // 개발용 디버그 핸들
-  (window as any).__IN = Input;
-  (window as any).__GS = GameState;
+  // 자동 테스트용 핸들: 주소 끝에 ?debug를 붙였을 때만 연다 (tools/test)
+  if (new URLSearchParams(location.search).has('debug')) Object.assign(window as any, { __LS: game, __IN: Input, __GS: GameState, __DEBUG: true });
   if (touchRoot) {
     if (isTouchDevice()) { mountTouchPad(touchRoot); document.body.classList.add('touch'); }
     else touchRoot.remove();
