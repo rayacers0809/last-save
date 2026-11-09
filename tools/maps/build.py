@@ -31,9 +31,14 @@ def build(mid, write=True):
     else:
         world = None
 
-    def mask(lst):
+    def mask(lst, shrink=0):
         m = Image.new('L', (W, H), 0); d = ImageDraw.Draw(m)
-        for poly in shapes(lst): d.polygon([(x * k, y * k) for x, y in poly], fill=255)
+        for poly in shapes(lst):
+            if shrink and len(poly) == 4 and poly[0][1] == poly[1][1]:
+                (x0, y0), (x1, _), (_, y1) = poly[0], poly[1], poly[2]
+                if (x1 - x0) > 2 * shrink + 4 and (y1 - y0) > 2 * shrink + 4 or shrink < 0:
+                    poly = [(x0 + shrink, y0 + shrink), (x1 - shrink, y0 + shrink), (x1 - shrink, y1 - shrink), (x0 + shrink, y1 - shrink)]
+            d.polygon([(x * k, y * k) for x, y in poly], fill=255)
         a = np.asarray(m, dtype=np.float32).reshape(rows, T, cols, T).mean(axis=(1, 3)) / 255
         return a >= 0.5
     base = cfg.get('base', '#')
@@ -41,8 +46,12 @@ def build(mid, write=True):
     from scipy import ndimage
     wm = mask(cfg.get('walk', []))
     if cfg.get('base', '#') != ' ': wm = ndimage.binary_closing(wm, structure=np.ones((3, 3)), iterations=1)
-    grid[wm] = '.'
-    grid[mask(cfg.get('block', []))] = '#'
+    # 막힌 물건은 가장자리를 조금 깎아서(답답하지 않게), 걷는 길은 한 칸 넓혀서 적용
+    bm = mask(cfg.get('block', []), shrink=cfg.get('shrink', 7))
+    wide = ndimage.binary_dilation(wm, structure=np.ones((3, 3))) & ~bm
+    if base == ' ': wide = wm & ~bm   # 하늘·물 위 섬은 넓히지 않는다 (구름 걸음 퍼즐 유지)
+    grid[wide] = '.'
+    grid[bm] = '#'
     for ch, *sh in cfg.get('special', []): grid[mask(sh)] = ch
 
     def cell(p): return int(p[0] * k / T), int(p[1] * k / T)

@@ -26,6 +26,7 @@ export function startGame(parent: HTMLElement, touchRoot?: HTMLElement) {
   });
   game.events.on(Phaser.Core.Events.POST_STEP, () => Input.endFrame());
   (window as any).__LS = game; // 개발용 디버그 핸들
+  (window as any).__IN = Input;
   if (touchRoot) {
     if (isTouchDevice()) { mountTouchPad(touchRoot); document.body.classList.add('touch'); }
     else touchRoot.remove();

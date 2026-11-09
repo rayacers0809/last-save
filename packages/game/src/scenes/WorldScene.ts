@@ -281,13 +281,11 @@ export class WorldScene extends Phaser.Scene {
     const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
     if (this.bridges.has(key(tx, ty))) return false;
     if (this.blocked(this.tileAt(px, py))) return true;
-    for (const n of this.npcs) if (Math.abs(n.x - px) < 10 && Math.abs(n.y - 3 - py) < 6) return true;
-    for (const n of this.folks) if (Math.abs(n.x - px) < 12 && Math.abs(n.y - 3 - py) < 6) return true;
-    const pf = feetOf(this.pointSpot);
-    return Math.abs(pf.x - px) < 10 && Math.abs(pf.y - 3 - py) < 6;
+    return false; // 사람·포인트는 길을 막지 않는다
   }
   private boxFree(x: number, y: number) {
-    return !this.solidAt(x - 7, y - 7) && !this.solidAt(x + 7, y - 7) && !this.solidAt(x - 7, y) && !this.solidAt(x + 7, y);
+    // 발밑 작은 판정 (좁은 길·모서리에서 걸리지 않게)
+    return !this.solidAt(x - 5, y - 4) && !this.solidAt(x + 5, y - 4) && !this.solidAt(x - 5, y - 1) && !this.solidAt(x + 5, y - 1);
   }
 
   // ---------- 파티 ----------
@@ -712,10 +710,14 @@ export class WorldScene extends Phaser.Scene {
       const ax = Input.axis();
       if (ax.x || ax.y) {
         moving = true;
-        const sp = Input.running() ? RUN : SPEED;
+        const sp = (Input.running() ? RUN : SPEED) * ((window as any).__SPEED ?? 1);
         const nx = L.x + ax.x * sp * dt, ny = L.y + ax.y * sp * dt;
-        if (this.boxFree(nx, L.y)) L.x = nx;
-        if (this.boxFree(L.x, ny)) L.y = ny;
+        const mx = this.boxFree(nx, L.y), my = this.boxFree(L.x, ny);
+        if (mx) L.x = nx;
+        if (my) L.y = ny;
+        // 모서리에 걸리면 길 가운데 쪽으로 살짝 밀어 준다
+        if (!mx && ax.x && Math.abs(ax.y) < 0.3) for (const off of [6, -6, 12, -12]) if (this.boxFree(nx, L.y + off)) { L.y += Math.sign(off) * Math.min(2, Math.abs(off)); break; }
+        if (!my && ax.y && Math.abs(ax.x) < 0.3) for (const off of [6, -6, 12, -12]) if (this.boxFree(L.x + off, ny)) { L.x += Math.sign(off) * Math.min(2, Math.abs(off)); break; }
         if (Math.abs(ax.x) > Math.abs(ax.y)) { this.face = { x: Math.sign(ax.x), y: 0 }; L.dir = ax.x < 0 ? 'left' : 'right'; }
         else { this.face = { x: 0, y: Math.sign(ax.y) }; L.dir = ax.y < 0 ? 'up' : 'down'; }
         L.walk += dt * (Input.running() ? 16 : 11);
