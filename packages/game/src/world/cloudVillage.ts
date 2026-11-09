@@ -84,9 +84,10 @@ export const TOWER_SPOT: Spot = P('tower');
 export const STATION_SPOT: Spot = P('station');
 
 const SG = (k: string) => { const v = (CLOUD.signs as Record<string, number[]>)[k]; return { x: v[0], y: v[1] }; };
-export const SIGNS: { x: number; y: number; text: string }[] = [
-  { ...SG('board'), text: '게시판. 이름이 적혀 있던 자리마다 검은 픽셀이 번져 있다.' },
-  { ...SG('fountain'), text: '분수대. 물소리는 들리는데 물이 보이지 않는다.' },
-  { ...SG('dome'), text: '유리 온실. 안쪽 화분들이 전부 같은 방향으로 시들어 있다.' },
-  { ...SG('swing'), text: '벚나무 그네. 누군가 앉아 있던 것처럼 천천히 흔들린다.' },
+export const cloudPos = P;
+export const SIGNS: { x: number; y: number; text: string; key?: string }[] = [
+  { ...SG('board'), key: 'board', text: '게시판. 이름이 적혀 있던 자리마다 검은 픽셀이 번져 있다.' },
+  { ...SG('fountain'), key: 'fountain', text: '분수대. 물소리는 들리는데 물이 보이지 않는다.' },
+  { ...SG('dome'), key: 'dome', text: '유리 온실. 안쪽 화분들이 전부 같은 방향으로 시들어 있다.' },
+  { ...SG('swing'), key: 'swing', text: '벚나무 그네. 누군가 앉아 있던 것처럼 천천히 흔들린다.' },
 ];

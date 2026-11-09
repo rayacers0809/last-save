@@ -22,7 +22,7 @@ export class StoryRunner {
       const raw = (this.story.Continue() ?? '').trim();
       if (!raw) continue;
       const tags = (this.story.currentTags ?? []).map(t => t.trim());
-      const m = raw.match(/^([a-z_]+):\s*(.*)$/);
+      const m = raw.match(/^([a-z0-9_]+):\s*(.*)$/);
       return m ? { speaker: m[1], text: m[2], tags } : { speaker: 'narr', text: raw, tags };
     }
     return null;

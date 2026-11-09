@@ -7,6 +7,23 @@ VAR me_id = "rumung"
 VAR me_name = "루뭉"
 VAR met_point = false
 VAR flower = ""
+VAR loop = false
+VAR garden_trust = ""
+VAR station_name = ""
+VAR photo_first = ""
+VAR shadow_point = ""
+VAR final_choice = ""
+VAR sq17 = false
+VAR frame = false
+VAR b_rumung = 0
+VAR b_dodamhi = 0
+VAR b_dotcha = 0
+VAR b_ttuning = 0
+VAR b_bigwin = 0
+VAR b_haming = 0
+VAR b_darae = 0
+VAR b_eune = 0
+VAR b_shiro = 0
 
 -> END
 
@@ -43,7 +60,13 @@ me: 일단 마을을 돌아보자. 광장 가운데 반짝이는 게 있네.
     -> point_menu
 }
 ~ met_point = true
-point: 안녕하세요, 접속자님! 세이브리아의 저장을 돕는 포인트예요.
+{ loop:
+    point: …처음 뵙겠습니다? #e_surprise
+    me: 왜 물음표야?
+    point: 어… 그러게요. 어디서 뵌 것 같아서요. 세이브리아의 저장을 돕는 포인트예요.
+- else:
+    point: 안녕하세요, 접속자님! 세이브리아의 저장을 돕는 포인트예요.
+}
 me: 저장? 지금 그게 문제가 아니라, 나 친구들이랑 같이 들어왔는데.
 point: 알고 있어요. 아홉 분. 다들 이 마을 어딘가에 계세요.
 point: 그런데 먼저 하늘을 봐 주실래요? #glitch
@@ -159,7 +182,7 @@ point: …오셨군요, 설계자님.
 }
 narr: 그 순간, 광장의 시계탑이 아래에서부터 검은 픽셀로 지워졌다. #glitch
 narr: 무너진 자리 위로 얼굴 없는 실루엣 하나가 서 있다가, 그대로 사라졌다. #glitch
-point: …크론이에요. 정리하는 자.
+point: …크론이에요. 정리하는 자. #e_sad
 me: 정리? 뭘?
 point: 끝나지 못한 것들을요.
 { me_id == "bigwin":
@@ -237,12 +260,12 @@ nb_b: 저요? 포실… 포실이에요. 털이 포실포실해서 할머니가 
 -> END
 
 === nb_c_name ===
-nb_c: 뭉게! 내 이름은 뭉게야. 근데 너는 누구더라?
+nb_c: 뭉게! 내 이름은 뭉게야. 근데 너는 누구더라? #e_surprise
 me: {me_name}. 이번엔 잊지 마.
 -> END
 
 === folk_idle ===
-nb_a: …안녕하세요. 혹시 저 아세요? 저도 제가 누군지 잘 모르겠어요.
+nb_a: …안녕하세요. 혹시 저 아세요? 저도 제가 누군지 잘 모르겠어요. #e_sad
 -> END
 
 // ───────── 휴식 이벤트 (포인트에서 6시간 휴식) ─────────
@@ -288,3 +311,8 @@ bigwin: 이상해. 이 세계 구석구석 다 아는데… 마지막 부분만 
 point: 언젠가 떠오를 거예요. 떠올려도 괜찮을 때가 오면요.
 bigwin: …너는 왜 꼭 아는 것처럼 말해.
 -> END
+
+INCLUDE act2.ink
+INCLUDE act3.ink
+INCLUDE act4.ink
+INCLUDE episodes.ink

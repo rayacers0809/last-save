@@ -17,6 +17,18 @@ import { SaveManager } from '../systems/SaveManager';
 import { runDialogue, toast, UIState, FONT } from './UIScene';
 import { glitchBurst } from './PrologueScene';
 import { isTouchDevice } from '../ui/TouchPad';
+import { SCRIPTS, EPISODES, episodeOpen, SHOP, type Episode } from '../world/content';
+import type { Ctx, Thing, Anchor, RegionScript } from '../world/script';
+import { Layout, type Pt } from '../world/layout';
+import { makeThingTextures } from '../gfx/things';
+import { runPuzzle, type PuzzleCfg } from './PuzzleScene';
+import { FOLK_KIND, folkTexture } from '../data/folks';
+import { regionName, countNotes, NOTE_TOTAL } from '../data/quests';
+import { cloudPos } from '../world/cloudVillage';
+
+interface ThingInst { def: Thing; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number; key: string; tile: Pt }
+const MQ_OF: Record<string, string> = { cloud: 'mq.cloud', mirror: 'mq.mirror', park: 'mq.park', data: 'mq.datacenter', garden: 'mq.garden', station: 'mq.station', photo: 'mq.photo', shadow: 'mq.shadow', lastsave: 'mq.final' };
+const WORLD_MQ = ['mq.mirror', 'mq.park', 'mq.datacenter', 'mq.garden', 'mq.station', 'mq.photo', 'mq.shadow'];
 
 const SWITCH_HINT = (n: number) => isTouchDevice() ? `아래 캐릭터 버튼(${n}번)` : `숫자키 ${n}`;
 
@@ -34,7 +46,7 @@ export class WorldScene extends Phaser.Scene {
   private cols = COLS;
   private rows = ROWS;
   private pointSpot = POINT_SPOT;
-  private signs: { x: number; y: number; text: string }[] = SIGNS;
+  private signs: { x: number; y: number; text: string; key?: string }[] = SIGNS;
   private vines = new Map<string, Phaser.GameObjects.Image>();
   private preview = false;
   private bridges = new Map<string, Phaser.GameObjects.Image>();
@@ -57,6 +69,16 @@ export class WorldScene extends Phaser.Scene {
   private pickups: { id: string; kind: 'piece' | 'letter'; spr: Phaser.GameObjects.Image }[] = [];
   private pendingRest = false;
   private skyStar?: Phaser.GameObjects.Image;
+  private script?: RegionScript;
+  private layout!: Layout;
+  private things: ThingInst[] = [];
+  private mirrored = false;
+  private boost = 0;
+  private raceState: { flags: string[]; next: number; t: number; onWin: (c: Ctx) => void | Promise<void> } | null = null;
+  private chaseState: { cron: Phaser.GameObjects.Sprite; x: number; y: number; start: Pt; goal: Pt; lamps: string[]; stun: number; delay: number; field: Int32Array | null; fieldT: number; onWin: (c: Ctx) => void | Promise<void> } | null = null;
+  private modeText!: Phaser.GameObjects.Text;
+  private darkImg?: Phaser.GameObjects.Image;
+  private mapOverlay?: Phaser.GameObjects.Container;
 
   constructor() { super('World'); }
 
@@ -106,15 +128,27 @@ export class WorldScene extends Phaser.Scene {
       if (this.grid[y][x] === 'X') this.rocks.set(key(x, y), this.add.image(x * TILE + 12, (y + 1) * TILE + 2, this.textures.exists('deco_rock') ? 'deco_rock' : 'rock').setOrigin(0.5, 1).setDisplaySize(34, 30).setDepth((y + 1) * TILE));
       if (this.grid[y][x] === 'V') this.vines.set(key(x, y), this.add.image(x * TILE, y * TILE, 'vine').setOrigin(0).setDepth((y + 1) * TILE));
     }
+    this.script = SCRIPTS[this.mapId];
+    makeThingTextures(this);
+    makeFolk(this, 'folk_cron', '#3d4793', 'cron');
+    if (this.script?.signText) this.signs = this.signs.map(sg => sg.key && this.script!.signText![sg.key] ? { ...sg, text: this.script!.signText![sg.key] } : sg);
     if (this.region) this.buildRegionExtras();
     else this.buildCloudExtras(d);
+    this.things = []; this.raceState = null; this.chaseState = null; this.mapOverlay = undefined; this.darkImg = undefined;
+    this.mirrored = !!GameState.flag('mode.mirror') && this.mapId === 'mirror';
+    GameState.setFlag('mode.race', false); GameState.setFlag('mode.chase', false);
+    this.buildThings(this.region ? this.region.spawn : START_SPOT);
+    this.errorOverlay();
+    this.modeText = this.add.text(480, 92, '', { fontFamily: FONT, fontSize: '24px', color: '#ffd66b', backgroundColor: '#1a1438dd', padding: { x: 10, y: 4 } }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(9800).setVisible(false);
+    if (this.script?.dark) this.makeDark();
     this.bgReady = !!img && this.textures.exists(texKey);
     this.live = true;
     // 포인트
     const pf = feetOf(this.pointSpot);
-    this.point = this.add.image(pf.x, pf.y - 20, 'point').setScale(1.4).setDepth(pf.y);
-    this.tweens.add({ targets: this.point, y: pf.y - 28, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    this.pointBubble = this.add.text(pf.x, pf.y - 64, '★', { fontFamily: FONT, fontSize: '24px', color: '#ffe27a' }).setOrigin(0.5).setDepth(9000);
+    const npcPt = this.textures.exists('npc_point');
+    this.point = this.add.image(pf.x, npcPt ? pf.y - 6 : pf.y - 20, npcPt ? 'npc_point' : 'point').setOrigin(0.5, npcPt ? 1 : 0.5).setScale(npcPt ? 1.25 : 1.4).setDepth(pf.y);
+    this.tweens.add({ targets: this.point, y: this.point.y - 8, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.pointBubble = this.add.text(pf.x, pf.y - (npcPt ? 96 : 64), '★', { fontFamily: FONT, fontSize: '24px', color: '#ffe27a' }).setOrigin(0.5).setDepth(9000);
     this.tweens.add({ targets: this.pointBubble, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
 
     // 아직 합류하지 않은 별지기 (구름 마을에서만)
@@ -147,7 +181,15 @@ export class WorldScene extends Phaser.Scene {
     Audio.bgm(this.region ? this.region.bgm : 'village');
 
     if (data.from === 'new') this.time.delayedCall(700, () => runDialogue('arrive'));
-    else if (data.from === 'travel') this.time.delayedCall(400, () => toast(`${this.region?.name ?? '구름 위의 마을'}${this.preview ? ' · 둘러보기 모드' : ''}`));
+    else if (data.from === 'travel') this.time.delayedCall(400, () => {
+      toast(`${this.region?.name ?? '구름 위의 마을'}${this.preview ? ' · 둘러보기 모드' : ''}`);
+      const arrive = this.script?.arrive;
+      const secret = this.mapId === 'trash' && GameState.flag('secret.mode');
+      if (arrive && !this.preview && (secret || !GameState.flag(`arrive.${this.mapId}`))) {
+        GameState.setFlag(`arrive.${this.mapId}`);
+        this.time.delayedCall(500, () => this.runAct(arrive));
+      }
+    });
     else this.time.delayedCall(400, () => toast('이어서 시작해요.'));
   }
 
@@ -198,10 +240,9 @@ export class WorldScene extends Phaser.Scene {
     for (const v of VILLAGERS) {
       makeFolk(this, `folk_${v.id}`, v.hat, v.id === 'piko' ? 'piko' : v.id === 'grandma' ? 'grandma' : 'folk');
       const f = feetOf(v);
-      const spr = this.add.image(f.x, f.y + 2, `folk_${v.id}`).setOrigin(0.5, 1).setDepth(f.y).setScale(1.2);
-      this.tweens.add({ targets: spr, scaleY: 1.14, duration: 900 + Math.random() * 400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const spr = this.folkSprite(v.id, f.x, f.y + 2, v.hat);
       const tag = this.add.text(f.x, f.y + 3, this.folkName(v.id), { fontFamily: FONT, fontSize: '12px', color: '#e6e0ff', stroke: '#1a1438', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(f.y);
-      const mark = this.add.text(f.x, f.y - 62, '…', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#e6e0ff', padding: { x: 5, y: 0 } }).setOrigin(0.5).setDepth(9000);
+      const mark = this.add.text(f.x, f.y - Math.max(62, spr.displayHeight + 14), '…', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#e6e0ff', padding: { x: 5, y: 0 } }).setOrigin(0.5).setDepth(9000);
       this.folks.push({ id: v.id, spr, tag, mark, x: f.x, y: f.y });
     }
     this.refreshFolkMarks();
@@ -213,14 +254,24 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private spawnNotes(list: { id: string; x: number; y: number; text: string }[]) {
-    const d = GameState.data;
-    for (const n of list) if (!d.bugNotes.includes(n.id)) {
+    const d = GameState.data, sc = SCRIPTS[this.mapId];
+    const surveyed = !!GameState.flag(`survey.${this.mapId}`);
+    for (const n of list) if (!d.bugNotes.includes(n.id) && !sc?.rewardNotes?.includes(n.id) && (surveyed || !sc?.hiddenNotes?.includes(n.id)) && !this.notes.some(x => x.id === n.id)) {
       const spr = this.add.image(n.x * TILE + TILE / 2, n.y * TILE + TILE / 2, 'note').setDepth((n.y + 1) * TILE);
       this.tweens.add({ targets: spr, y: spr.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       this.notes.push({ id: n.id, spr, text: n.text });
     }
   }
 
+  private folkSprite(id: string, x: number, y: number, hat: string) {
+    const t = folkTexture(this, id);
+    const spr = this.add.image(x, y, t.key).setOrigin(0.5, 1).setDepth(y);
+    const sc = t.height ? t.height / spr.height : 1.2;
+    spr.setScale(sc);
+    if (t.tint) spr.setTint(Phaser.Display.Color.HexStringToColor(hat).color | 0x606060);
+    this.tweens.add({ targets: spr, scaleY: sc * 0.95, duration: 900 + Math.random() * 400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    return spr;
+  }
   private regionFolks: { id: string; name: string; lines: string[] }[] = [];
   private buildRegionExtras() {
     const r = this.region!;
@@ -228,16 +279,16 @@ export class WorldScene extends Phaser.Scene {
     this.spawnNotes(r.notes);
     this.regionFolks = [];
     for (const n of r.npcs) {
-      const id = `${r.id}_${n.id}`;
-      makeFolk(this, `folk_${id}`, n.hat, 'folk');
+      const id = n.id;
+      makeFolk(this, `folk_${id}`, n.hat, FOLK_KIND[id] ?? 'folk');
       const f = feetOf(n);
-      const spr = this.add.image(f.x, f.y + 2, `folk_${id}`).setOrigin(0.5, 1).setDepth(f.y).setScale(1.2);
-      this.tweens.add({ targets: spr, scaleY: 1.14, duration: 900 + Math.random() * 400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const spr = this.folkSprite(id, f.x, f.y + 2, n.hat);
       const tag = this.add.text(f.x, f.y + 3, n.name, { fontFamily: FONT, fontSize: '12px', color: '#e6e0ff', stroke: '#1a1438', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(f.y);
-      const mark = this.add.text(f.x, f.y - 62, '…', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#e6e0ff', padding: { x: 5, y: 0 } }).setOrigin(0.5).setDepth(9000);
+      const mark = this.add.text(f.x, f.y - Math.max(62, spr.displayHeight + 14), '…', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#e6e0ff', padding: { x: 5, y: 0 } }).setOrigin(0.5).setDepth(9000);
       this.folks.push({ id, spr, tag, mark, x: f.x, y: f.y });
       this.regionFolks.push({ id, name: n.name, lines: n.lines });
     }
+    this.refreshFolkMarks();
   }
 
   // ---------- 생성 ----------
@@ -293,9 +344,12 @@ export class WorldScene extends Phaser.Scene {
   private followers(): Actor[] { const d = GameState.data; return d.party.filter(id => id !== d.leader).map(id => this.actors.get(id)!); }
   private orderActors() { this.cameras.main.startFollow(this.lead.spr, true, 0.12, 0.12); }
 
-  private switchTo(id: CharId) {
+  private switchTo(id: CharId, force = false) {
     const d = GameState.data;
-    if (id === d.leader || !d.party.includes(id) || this.lock) return;
+    if (id === d.leader || !d.party.includes(id) || (this.lock && !force)) return;
+    const ep = EPISODES.find(e => GameState.flag(`ep.${e.id}.active`));
+    if (ep && ep.map === this.mapId && !force && id !== ep.id) { toast(`에피소드 중에는 ${charById(ep.id).name}(이)가 리더야.`); return; }
+    if (this.chaseState && !force && !['shiro', 'haming'].includes(id) && false) return;
     const a = this.lead, b = this.actors.get(id)!;
     // 새 리더가 지금 자리를 이어받고, 이전 리더는 바로 뒤에 선다
     const bx = b.x, by = b.y;
@@ -308,6 +362,7 @@ export class WorldScene extends Phaser.Scene {
       this.tweens.add({ targets: p, y: p.y - 20, alpha: 0, duration: 400, onComplete: () => p.destroy() });
     }
     Bus.emit('hud-refresh');
+    this.refreshFolkMarks(); this.updateDark();
     toast(`${charById(id).name}(으)로 교체`); Audio.sfx('switch');
   }
   private cycle() {
@@ -321,8 +376,14 @@ export class WorldScene extends Phaser.Scene {
     const near = (x: number, y: number, r: number) => Math.hypot(x - L.x, y - L.y) < r;
     const npc = this.npcs.filter(n => near(n.x, n.y, 46)).sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
     if (npc) return this.recruit(npc);
-    const folk = this.folks.filter(n => near(n.x, n.y, 46)).sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
+    const folk = this.folks.filter(n => n.spr.visible && near(n.x, n.y, 46)).sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
     if (folk) return this.region ? this.talkRegionFolk(folk.id) : this.talkFolk(folk.id);
+    // 퀘스트 오브젝트
+    const th = this.nearThing(46, t => !!t.def.use || !!t.def.ability);
+    if (th) {
+      if (th.def.use) return this.runAct(th.def.use);
+      return toast(this.abilityHint(th.def));
+    }
     const pf = feetOf(this.pointSpot);
     if (near(pf.x, pf.y, 48)) {
       this.lock = true; this.pendingRest = false;
@@ -395,6 +456,15 @@ export class WorldScene extends Phaser.Scene {
   }
   private refreshFolkMarks() {
     const f = (k: string) => !!GameState.flag(k);
+    if (this.region) {
+      for (const v of this.folks) {
+        const show = this.script?.npcShow?.[v.id]?.() ?? true;
+        const m = this.preview ? '' : this.script?.npcMark?.[v.id]?.() ?? '';
+        v.spr.setVisible(show); v.tag.setVisible(show);
+        v.mark.setText(m).setVisible(show && !!m).setBackgroundColor(m === '!' ? '#ffd66b' : '#9fe0c4');
+      }
+      return;
+    }
     for (const v of this.folks) {
       let m = '';
       if (v.id === 'piko') m = !f('sq01.start') ? '!' : !f('sq01.done') && GameState.item('letters') >= 5 ? '?' : '';
@@ -432,7 +502,8 @@ export class WorldScene extends Phaser.Scene {
       else if (!f('sq02.done') && met) {
         await runDialogue('grandma_done'); GameState.setFlag('sq02.done');
         GameState.data.bugNotes.push(SQ02_NOTE.id); toast(SQ02_NOTE.text); Audio.sfx('get'); GameState.spend(1, '이웃 찾기');
-      } else toast(f('sq02.done') ? '빵집 할머니: 오늘 빵은 갓 구웠단다.' : '빵집 할머니: 이웃들 이름은 들어 봤니?');
+      } else if (f('sq02.done')) { this.lock = false; this.openShop('빵집 할머니의 가게'); return; }
+      else toast('빵집 할머니: 이웃들 이름은 들어 봤니?');
     } else {
       if (f('sq02.start') && !f(`sq02.${id}`)) { await runDialogue(`${id}_name`); GameState.setFlag(`sq02.${id}`); Audio.sfx('get'); }
       else if (f(`sq02.${id}`)) toast(`${this.folkName(id)}: 이름 불러 줘서 고마워요!`);
@@ -476,26 +547,33 @@ export class WorldScene extends Phaser.Scene {
       if (this.preview) return null;
       if (id === 'studio') return '현실로는 아직 돌아갈 수 없다';
       if (id === 'cloud') return null;
-      if (act === 2 && (id === 'mirror' || id === 'park')) return GameState.flag('mq.cloud') ? null : '1막을 끝내야 열린다';
-      if (id === 'data') return visited('mirror') && visited('park') ? null : '거울의 숲과 놀이공원을 먼저 둘러보자';
-      return `${act === 5 ? '시크릿' : act + '막'} · 이야기 준비 중`;
+      const F = (k: string) => !!GameState.flag(k);
+      if (id === 'mirror' || id === 'park') return F('mq.cloud') ? null : '1막을 끝내야 열린다';
+      if (id === 'data') return F('mq.mirror') && F('mq.park') ? null : '거울의 숲과 놀이공원의 별을 먼저 켜자';
+      if (id === 'garden' || id === 'station' || id === 'photo') return F('mq.datacenter') ? null : '2막(데이터 센터)을 끝내야 열린다';
+      if (id === 'shadow') return F('mq.garden') && F('mq.station') && F('mq.photo') ? null : '3막 세 지역의 별을 먼저 켜자';
+      if (id === 'lastsave') return F('mq.shadow') ? null : '그림자의 도시를 지나야 열린다';
+      void visited; void act;
+      return '…아직 아무도 모르는 곳이다';
     };
     const opts = MAP_ORDER.filter(m => m.id !== this.mapId).map(m => {
       const lock = avail(m.id, m.act);
-      return { label: `${m.name}${lock ? ' 🔒' : ''}`, act: () => lock ? toast(lock) : this.travel(m.id) };
+      return { label: `${m.name}${lock ? ' (잠김)' : GameState.flag(MQ_OF[m.id] ?? '-') ? ' ★' : ''}`, act: () => lock ? toast(lock) : this.travel(m.id) };
     });
     opts.push({ label: '닫기', act: () => {} });
-    Bus.emit('menu', this.preview ? '맵 둘러보기 — 어디로 갈까?' : '하늘 정류장 — 어디로 갈까?', opts, this.preview ? '둘러보기 모드: 시간이 흐르지 않고 저장되지 않아요.' : '이동할 때마다 2시간이 흐른다.');
+    Bus.emit('menu', this.preview ? '맵 둘러보기 — 어디로 갈까?' : '하늘 정류장 — 어디로 갈까?', opts, this.preview ? '둘러보기 모드: 시간이 흐르지 않고 저장되지 않아요.' : '처음 가는 곳은 2시간, 가 본 곳은 1시간이 흐른다. ★ = 별을 되찾은 지역');
   }
   private travel(id: string) {
     const d = GameState.data;
     this.lock = true;
-    if (!this.preview) GameState.spend(2, '이동');
+    if (!this.preview) GameState.spend(GameState.flag(`visit.${id}`) ? 1 : 2, '이동');
     d.pos = { x: 0, y: 0 };
     this.cameras.main.fadeOut(400, 255, 255, 255);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ from: 'travel', map: id }));
   }
   private async talkRegionFolk(id: string) {
+    const talk = this.script?.talk?.[id];
+    if (talk && !this.preview) return this.runAct(talk);
     const f = this.regionFolks.find(x => x.id === id); if (!f) return;
     this.lock = true;
     await new Promise<void>(res => Bus.emit('lines', f.lines.map(t => ({ name: f.name, por: `folk_${id}`, text: t })), res));
@@ -504,17 +582,23 @@ export class WorldScene extends Phaser.Scene {
 
   private async rest() {
     const d = GameState.data;
-    const scenes: [string, string[]][] = [['rest_1', ['rumung', 'haming']], ['rest_2', ['dotcha', 'ttuning']], ['rest_3', ['darae', 'eune']], ['rest_4', ['dodamhi', 'shiro']], ['rest_5', ['bigwin']]];
-    const pick = scenes.find(([k, who]) => !GameState.flag(`rest.${k}`) && who.every(w => d.party.includes(w as CharId)));
+    const F = (k: string) => !!GameState.flag(k);
+    const scenes: [string, string[], boolean][] = [['rest_1', ['rumung', 'haming'], true], ['rest_2', ['dotcha', 'ttuning'], true], ['rest_3', ['darae', 'eune'], true], ['rest_4', ['dodamhi', 'shiro'], true], ['rest_5', ['bigwin'], true],
+      ['rest_6', ['dodamhi', 'eune'], F('visit.mirror')], ['rest_8', ['rumung', 'dotcha'], F('visit.park')], ['rest_7', ['ttuning', 'darae'], F('mq.datacenter')], ['rest_9', ['haming', 'bigwin'], F('visit.garden')],
+      ['rest_10', ['shiro', 'darae'], F('visit.station')], ['rest_11', ['ttuning', 'dodamhi'], F('visit.photo')], ['rest_12', ['bigwin', 'rumung'], F('mq.shadow')]];
+    const pick = scenes.find(([k, who, ok]) => ok && !GameState.flag(`rest.${k}`) && who.every(w => d.party.includes(w as CharId)));
     this.cameras.main.fadeOut(500, 8, 6, 24);
     await new Promise(r => this.time.delayedCall(600, r));
-    GameState.spend(6, '휴식');
+    const tea = !!GameState.flag('buff.tea'); GameState.setFlag('buff.tea', false);
+    GameState.spend(tea ? 4 : 6, tea ? '따뜻한 차를 마시고 휴식' : '휴식');
+    GameState.setBw(GameState.bwMax());
     if (pick) {
       this.cameras.main.fadeIn(400, 8, 6, 24);
       await runDialogue(pick[0]);
       GameState.setFlag(`rest.${pick[0]}`);
       pick[1].forEach(w => GameState.addBond(w));
     } else { this.cameras.main.fadeIn(400, 8, 6, 24); toast('푹 쉬었다.'); }
+    this.refreshThings();
   }
   private async timeUp() {
     if (this.lock && GameState.flag('time.up')) return;
@@ -523,32 +607,54 @@ export class WorldScene extends Phaser.Scene {
     while (UIState.busy) await new Promise(r => this.time.delayedCall(200, r));
     await new Promise(r => this.time.delayedCall(800, r));
     Audio.bgm(null);
-    this.cameras.main.fadeOut(1200, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', async () => {
-      await SaveManager.clear();
-      this.scene.start('Ending', { kind: 'reset' });
-    });
+    this.goEnding('reset');
   }
   private openMainMenu() {
     Bus.emit('menu', '일시정지', [
       { label: '계속하기', act: () => {} },
       { label: '퀘스트 (J)', act: () => this.showQuests() },
       { label: '가방 (I)', act: () => this.showBag() },
+      { label: '동료 · 유대', act: () => this.showParty() },
+      { label: `앨범 (${GameState.data.album.length}/36)`, act: () => this.showAlbum() },
+      { label: '지도 (M)', act: () => this.showMap(false) },
       { label: Audio.muted ? '소리 켜기' : '소리 끄기', act: () => { Audio.setMuted(!Audio.muted); toast(Audio.muted ? '소리를 껐어요.' : '소리를 켰어요.'); } },
       { label: '저장은 포인트(★)에게', act: () => toast('광장의 별, 포인트에게 말을 걸면 저장할 수 있어.') },
       { label: '타이틀로', act: () => this.scene.start('Title') },
     ]);
   }
-  private showQuests() {
+  private showQuests(done = false) {
     const q = questLog();
-    const body = q.map(x => `${x.done ? '✔' : '▸'} [${x.kind}] ${x.title}\n   ${x.desc}`).join('\n\n') || '진행 중인 퀘스트가 없다.';
-    Bus.emit('menu', '퀘스트', [{ label: '닫기', act: () => {} }], body);
+    const act = q.filter(x => !x.done), fin = q.filter(x => x.done);
+    const body = done
+      ? fin.map(x => `✔ [${x.kind}] ${x.title}`).join('\n') || '아직 끝낸 퀘스트가 없다.'
+      : act.map(x => `▸ [${x.kind}] ${x.title}\n   ${x.desc}`).join('\n') || '진행 중인 퀘스트가 없다. 하늘 정류장에서 다음 지역으로 가 보자.';
+    Bus.emit('menu', done ? `완료한 퀘스트 ${fin.length}개` : `진행 중인 퀘스트 ${act.length}개`, [
+      { label: done ? '진행 중 보기' : `완료한 것 보기 (${fin.length})`, act: () => this.showQuests(!done) },
+      { label: '닫기', act: () => {} },
+    ], body);
   }
   private showBag() {
     const d = GameState.data;
-    const lines = Object.entries(d.inventory).filter(([, n]) => n > 0).map(([k, n]) => `${ITEM_NAMES[k]?.name ?? k} ×${n}\n   ${ITEM_NAMES[k]?.desc ?? ''}`);
-    lines.push(`버그 노트 ${d.bugNotes.length}/3`, `세계 기억 ${d.memories.world}/8`);
-    Bus.emit('menu', '가방', [{ label: '닫기', act: () => {} }], lines.join('\n'));
+    const lines = Object.entries(d.inventory).filter(([k, n]) => n > 0 && k !== 'epfrag').map(([k, n]) => `${ITEM_NAMES[k]?.name ?? k} ×${n}${d.equip.includes(k) ? ' [장착]' : ''} — ${ITEM_NAMES[k]?.desc ?? ''}`);
+    lines.push(`버그 노트 ${countNotes(d.bugNotes)}/${NOTE_TOTAL} · 세계 기억 ${d.memories.world}/8 · 핵심 기억 ${d.memories.core.length}/9 · 설계자 권한 ${GameState.bwCharges()}/${GameState.bwMax()}`);
+    const opts: { label: string; act: () => void }[] = [];
+    if (GameState.item('starCandy') > 0) opts.push({ label: '별사탕 쓰기', act: () => {
+      if (GameState.bwCharges() >= GameState.bwMax()) return toast('설계자 권한이 이미 가득 찼어.');
+      GameState.addItem('starCandy', -1); GameState.setBw(GameState.bwCharges() + 1); Audio.sfx('star'); toast(`설계자 권한 충전! (${GameState.bwCharges()}/${GameState.bwMax()})`);
+    } });
+    if (GameState.item('tea') > 0 && !GameState.flag('buff.tea')) opts.push({ label: '따뜻한 차 마시기', act: () => { GameState.addItem('tea', -1); GameState.setFlag('buff.tea'); toast('몸이 따뜻해졌다. 다음 휴식은 4시간이면 된다.'); } });
+    if (GameState.item('cotton') > 0) opts.push({ label: '구름솜 쓰기', act: () => { GameState.addItem('cotton', -1); GameState.setFlag('buff.cotton', ((GameState.flag('buff.cotton') as number) || 0) + 5); toast('구름 발판이 다섯 번 동안 두 배로 오래 간다.'); } });
+    for (const s of SHOP.filter(x => x.acc && GameState.item(x.k) > 0)) {
+      const on = d.equip.includes(s.k);
+      opts.push({ label: `${on ? '해제' : '장착'}: ${ITEM_NAMES[s.k].name}`, act: () => {
+        if (on) d.equip = d.equip.filter(k => k !== s.k);
+        else if (d.equip.length >= GameState.equipSlots()) return toast(`액세서리 칸이 가득 찼어. (${GameState.equipSlots()}칸)`);
+        else d.equip.push(s.k);
+        toast(`${ITEM_NAMES[s.k].name} ${on ? '해제' : '장착'}`);
+      } });
+    }
+    opts.push({ label: '닫기', act: () => {} });
+    Bus.emit('menu', '가방', opts, lines.join('\n'));
   }
 
   private onTag(t: string) {
@@ -562,7 +668,7 @@ export class WorldScene extends Phaser.Scene {
     }
     if (t === 'rest') this.pendingRest = true;
     if (t === 'quest') { Audio.sfx('quest'); Bus.emit('hud-refresh'); }
-    if (t === 'tower_light') this.restoreTower();
+    if (t === 'tower_light') { if (this.region) this.starBurst(); else if (GameState.data.party.length === 9 && !GameState.flag('mq.cloud')) this.restoreTower(); else this.starBurst(); }
     if (t === 'act_clear') this.time.delayedCall(50, () => this.actClear());
     if (t === 'save' && this.preview) { toast('둘러보기 모드에서는 저장하지 않아요.'); return; }
     if (t === 'save') {
@@ -592,9 +698,8 @@ export class WorldScene extends Phaser.Scene {
   }
   private cronFlash() {
     const x = (TOWER_VEIL[0] + TOWER_VEIL[2]) / 2, y = TOWER_VEIL[3] + 30;
-    const body = this.add.rectangle(x, y - 34, 26, 60, 0x0b0820).setDepth(9000);
-    const head = this.add.rectangle(x, y - 74, 22, 22, 0x0b0820).setDepth(9000);
-    [body, head].forEach(o => this.tweens.add({ targets: o, alpha: { from: 0, to: 1 }, duration: 80, yoyo: true, repeat: 5, onComplete: () => o.destroy() }));
+    const o = this.add.image(x, y, this.textures.exists('npc_cron') ? 'npc_cron' : 'cron').setOrigin(0.5, 1).setScale(1.6).setDepth(9000).setTint(0x8080c0);
+    this.tweens.add({ targets: o, alpha: { from: 0, to: 1 }, duration: 80, yoyo: true, repeat: 5, onComplete: () => o.destroy() });
   }
 
   // ---------- 능력 ----------
@@ -603,12 +708,22 @@ export class WorldScene extends Phaser.Scene {
     this.abilityCd = 0.4;
     const L = this.lead, id = GameState.data.leader;
     const tx = Math.floor(L.x / TILE), ty = Math.floor((L.y - 4) / TILE);
+    // 근처 오브젝트에 맞는 능력이 있으면 그걸 쓴다
+    const th = this.nearThing(52, t => !!t.def.ability);
+    if (th) {
+      const fn = th.def.ability![id];
+      if (fn) return this.runAct(fn);
+      if (id !== 'darae' && !(id === 'dotcha' && this.raceState)) return toast(this.abilityHint(th.def));
+    }
     if (id === 'rumung') return this.cloudStep(tx, ty);
-    if (id === 'dotcha') return this.dash(tx, ty);
+    if (id === 'dotcha') { if (this.raceState) { this.boost = 1.2; this.abilityCd = 1.8; Audio.sfx('dash'); return; } return this.dash(tx, ty); }
     if (id === 'haming') return this.bloom(tx, ty);
-    if (id === 'shiro') { toast('시로는 고양이 길(좁은 틈)을 그냥 지나갈 수 있어.'); return; }
-    const c = charById(id);
-    toast(`${c.name}의 「${c.ability}」은 다음 지역부터 쓸 수 있어.`);
+    if (id === 'darae') return this.survey();
+    if (id === 'shiro') { toast(this.script?.dark ? '밤눈! 시로가 앞장서면 어둠 속이 환히 보인다.' : '시로는 고양이 길(좁은 창살 틈)을 그냥 지나갈 수 있어.'); return; }
+    if (id === 'eune') { Audio.sfx('save'); this.cameras.main.flash(120, 255, 255, 255); toast('찰칵. 촬영 지점에서 찍으면 앨범에 남는다.'); return; }
+    if (id === 'dodamhi') { toast('여기엔 읽을 잔향이 없어. 반짝이는(✦) 물건 근처에서 써 보자.'); return; }
+    if (id === 'ttuning') { toast('해석할 장치가 없어. 단말기나 제어반 근처에서 써 보자.'); return; }
+    if (id === 'bigwin') { toast(`설계자 권한을 쓸 대상이 없어. (충전 ${GameState.bwCharges()}/${GameState.bwMax()})`); return; }
   }
 
   private cloudStep(tx: number, ty: number) {
@@ -638,7 +753,9 @@ export class WorldScene extends Phaser.Scene {
       if (keys.includes(lk)) { this.time.delayedCall(1000, expire); return; }
       keys.forEach(k => { const img = this.bridges.get(k); if (!img) return; this.bridges.delete(k); this.tweens.add({ targets: img, alpha: 0, scale: 0.6, duration: 300, onComplete: () => img.destroy() }); });
     };
-    this.time.delayedCall(12000, expire);
+    const cot = (GameState.flag('buff.cotton') as number) || 0;
+    if (cot > 0) GameState.setFlag('buff.cotton', cot - 1);
+    this.time.delayedCall(cot > 0 ? 24000 : 12000, expire);
   }
 
   private bloom(tx: number, ty: number) {
@@ -687,6 +804,409 @@ export class WorldScene extends Phaser.Scene {
     toast('돌진! 바위가 부서졌다.');
   }
 
+  // ═════════════════════════ 2~4막 공용 시스템 ═════════════════════════
+
+  /** 지역 스크립트 실행 (대화·퍼즐 동안 조작을 막는다) */
+  private async runAct(fn: (c: Ctx) => void | Promise<void>) {
+    if (this.lock) return;
+    this.lock = true;
+    try { await fn(this.ctx()); } finally { this.lock = false; this.refreshThings(); this.refreshFolkMarks(); Bus.emit('hud-refresh'); }
+  }
+
+  private ctx(): Ctx {
+    const self = this;
+    return {
+      map: this.mapId,
+      get leader() { return GameState.data.leader; },
+      say: k => runDialogue(k),
+      toast,
+      puzzle: (cfg: PuzzleCfg) => runPuzzle(this, cfg),
+      spend: (h, why) => GameState.spend(h, why),
+      give: (k, n = 1) => { if (k === 'starShard' && GameState.equipped('acc_brooch')) n = Math.round(n * 1.5); GameState.addItem(k, n); Audio.sfx('get'); },
+      item: k => GameState.item(k),
+      bond: (...ids) => ids.forEach(i => GameState.addBond(i)),
+      note: id => { if (!GameState.data.bugNotes.includes(id)) GameState.data.bugNotes.push(id); Bus.emit('hud-refresh'); },
+      world: () => GameState.world(1 + WORLD_MQ.filter(k => GameState.flag(k)).length),
+      need: (id, what) => {
+        if (GameState.data.leader === id) return true;
+        toast(`${what} ${charById(id).name}(이)가 앞장서야 해. (${SWITCH_HINT(CHAR_IDS.indexOf(id) + 1)})`); return false;
+      },
+      switchTo: id => this.switchTo(id, true),
+      refresh: () => { this.refreshThings(); this.refreshFolkMarks(); Bus.emit('hud-refresh'); },
+      fx: k => {
+        if (k === 'flash') this.cameras.main.flash(300, 255, 255, 255);
+        if (k === 'shake') { this.cameras.main.shake(200, 0.01); Audio.sfx('dash'); }
+        if (k === 'glitch') { glitchBurst(this, 0.6); Audio.sfx('glitch'); }
+        if (k === 'star') { Audio.sfx('star'); this.sparkle(this.lead.x, this.lead.y - 30, 0xffe27a); }
+      },
+      photo: (id, cap) => {
+        const d = GameState.data;
+        if (d.album.includes(id)) return toast('이미 찍은 자리다.');
+        d.album.push(id); GameState.setFlag(`photo.${id}`, cap);
+        this.cameras.main.flash(180, 255, 255, 255); Audio.sfx('save');
+        toast(`찰칵! 앨범에 「${cap}」 (${d.album.length}/36)`);
+        this.refreshThings();
+      },
+      shop: t => this.openShop(t),
+      menu: (t, o, b) => Bus.emit('menu', t, o, b),
+      mirrorMode: goal => {
+        this.mirrored = !!goal; GameState.setFlag('mode.mirror', !!goal);
+        toast(goal ? '좌우가 뒤바뀌었다! (왼쪽 ↔ 오른쪽)' : '좌우가 원래대로 돌아왔다.');
+      },
+      race: (flags, secs, onWin) => this.startRace(flags, secs, onWin),
+      chase: (a, b, lamps, onWin) => this.startChase(a, b, lamps, onWin),
+      ending: k => this.goEnding(k),
+      wait: ms => new Promise(r => self.time.delayedCall(ms, r)),
+      bw: () => {
+        const n = GameState.bwCharges(), max = GameState.bwMax();
+        if (!this.preview && n <= 0) { toast('설계자 권한 충전이 없어. 별사탕을 쓰거나 포인트에게서 쉬면 충전돼.'); return false; }
+        if (!this.preview) GameState.setBw(n - 1);
+        this.cameras.main.flash(200, 230, 189, 74); Audio.sfx('glitch');
+        toast(`설계자 권한 사용 (${GameState.bwCharges()}/${max})`);
+        return true;
+      },
+    };
+  }
+
+  private abilityHint(t: Thing) {
+    const who = Object.keys(t.ability ?? {}) as CharId[];
+    if (!who.length) return '무언가 할 수 있을 것 같은데…';
+    return `${who.map(w => `${charById(w).name}(${CHAR_IDS.indexOf(w) + 1})`).join(' 또는 ')}의 능력이 필요해 보인다.`;
+  }
+
+  // ---------- 퀘스트 오브젝트 ----------
+  private episodeThings(): Thing[] {
+    const out: Thing[] = [];
+    for (const e of EPISODES.filter(x => x.map === this.mapId)) {
+      const act = `ep.${e.id}.active`;
+      out.push({
+        id: `ep_${e.id}`, at: e.at, tex: 'memory', label: `${charById(e.id).name}의 기억`,
+        show: () => (episodeOpen(e) && !(GameState.flag(act) && e.frags)) && !this.preview,
+        use: c => this.episode(e, c), mark: () => '♥',
+      });
+      (e.frags ?? []).forEach((a, i) => out.push({
+        id: `ep_${e.id}_f${i}`, at: a, tex: e.fragTex ?? 'page', once: true, show: () => !!GameState.flag(act),
+        touch: async c => {
+          c.give('epfrag'); const n = c.item('epfrag');
+          if (n >= e.frags!.length) await this.finishEpisode(e, c); else toast(`${e.fragName}을(를) 찾았다. (${n}/${e.frags!.length})`);
+        },
+      }));
+    }
+    return out;
+  }
+  private async episode(e: Episode, c: Ctx) {
+    const act = `ep.${e.id}.active`;
+    if (GameState.data.leader !== e.id) this.switchTo(e.id, true);
+    if (!GameState.flag(act)) { GameState.setFlag(act); GameState.data.inventory.epfrag = 0; await c.say(`ep_${e.id}_start`); }
+    if (e.frags) { this.refreshThings(); return; }
+    if (e.puzzle) {
+      const r = await c.puzzle(e.puzzle);
+      if (r !== 'ok') { toast('기억이 아직 흐릿하다. 다시 다가가 보자.'); return; }
+    }
+    await this.finishEpisode(e, c);
+  }
+  private async finishEpisode(e: Episode, c: Ctx) {
+    await c.say(`ep_${e.id}_end`);
+    const d = GameState.data;
+    GameState.setFlag(`ep.${e.id}.active`, false); GameState.setFlag(`ep.${e.id}`);
+    if (!d.memories.core.includes(e.id)) d.memories.core.push(e.id);
+    d.inventory.epfrag = 0;
+    if (e.reward) GameState.addItem(e.reward);
+    GameState.spend(2, `에피소드 「${e.title}」`);
+    toast(`핵심 기억 ${d.memories.core.length}/9 — ${e.star}`);
+    this.refreshThings(); Bus.emit('hud-refresh');
+  }
+
+  private buildThings(spawn: Pt) {
+    const r = this.region;
+    const anchors: Pt[] = [this.pointSpot, ...this.signs, ...(r ? r.npcs : VILLAGERS), ...(r ? r.notes : BUG_NOTES)];
+    this.layout = new Layout(this.grid, spawn, anchors);
+    const defs = [...(this.script?.things ?? []), ...this.episodeThings()];
+    for (const def of defs) {
+      const p = this.resolve(def.at, spawn);
+      const x = p.x * TILE + TILE / 2, y = (p.y + 1) * TILE - 2;
+      const tex = typeof def.tex === 'function' ? def.tex() : def.tex;
+      const spr = this.add.image(x, y, `th_${tex}`).setOrigin(0.5, 1).setDepth(y).setScale(1.3);
+      if (def.once || tex === 'memory' || tex === 'photo' || tex === 'goal' || tex === 'firefly') this.tweens.add({ targets: spr, y: y - 5, duration: 700 + (x % 300), yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const label = typeof def.label === 'function' ? def.label() : def.label ?? '';
+      const tag = this.add.text(x, y + 2, label, { fontFamily: FONT, fontSize: '12px', color: '#fff6d6', stroke: '#1a1438', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(9000).setVisible(false);
+      const mark = this.add.text(x, y - spr.displayHeight - 16, '', { fontFamily: FONT, fontSize: '24px', color: '#1a1438', backgroundColor: '#ffd66b', padding: { x: 6, y: 0 } }).setOrigin(0.5).setDepth(9000).setVisible(false);
+      this.tweens.add({ targets: mark, y: mark.y - 4, duration: 500, yoyo: true, repeat: -1 });
+      this.things.push({ def, spr, tag, mark, x, y, key: `${this.mapId}:${def.id}`, tile: p });
+    }
+    this.refreshThings();
+  }
+  private resolve(a: Anchor, spawn: Pt): Pt {
+    if (a.gated) return this.layout.near(spawn, true);
+    let base: Pt | null = null;
+    if (a.sign) base = this.signs.find(s => s.key === a.sign) ?? null;
+    else if (a.npc) base = (this.region ? this.region.npcs : VILLAGERS).find(n => n.id === a.npc) ?? null;
+    else if (a.note) base = (this.region ? this.region.notes : BUG_NOTES).find(n => n.id === a.note) ?? null;
+    else if (a.pos && !this.region) base = cloudPos(a.pos);
+    else if (a.point) base = this.pointSpot;
+    else if (a.spawn) base = spawn;
+    if (!base) return this.layout.far(a.far ?? 0);
+    return this.layout.near({ x: base.x + (a.dx ?? 0), y: base.y + (a.dy ?? 0) });
+  }
+  private thingVisible(t: ThingInst) {
+    const d = t.def;
+    if (d.once && GameState.data.picked.includes(t.key)) return false;
+    if (d.hidden && !GameState.flag(`survey.${this.mapId}`)) return false;
+    return d.show ? !!d.show() : true;
+  }
+  private refreshThings() {
+    for (const t of this.things) {
+      const v = this.thingVisible(t);
+      t.spr.setVisible(v);
+      if (v) { const tex = typeof t.def.tex === 'function' ? t.def.tex() : t.def.tex; t.spr.setTexture(`th_${tex}`); }
+      const m = v && !this.preview ? t.def.mark?.() ?? '' : '';
+      t.mark.setText(m).setVisible(!!m).setBackgroundColor(m === '♥' ? '#ff9ec4' : m === '✦' ? '#d9ccff' : '#ffd66b');
+      if (!v) t.tag.setVisible(false);
+      const label = typeof t.def.label === 'function' ? t.def.label() : t.def.label ?? '';
+      t.tag.setText(label);
+    }
+    if (this.region) this.spawnNotes(this.region.notes);
+    if (this.darkImg) this.updateDark();
+  }
+  private nearThing(r: number, pred: (t: ThingInst) => boolean) {
+    const L = this.lead;
+    return this.things.filter(t => t.spr.visible && pred(t) && Math.hypot(t.x - L.x, t.y - L.y) < r)
+      .sort((a, b) => Math.hypot(a.x - L.x, a.y - L.y) - Math.hypot(b.x - L.x, b.y - L.y))[0];
+  }
+  private updateThings(busy: boolean) {
+    const L = this.lead;
+    const near = this.nearThing(52, () => true);
+    for (const t of this.things) t.tag.setVisible(t === near && !!t.tag.text);
+    if (busy) return;
+    for (const t of this.things) {
+      if (!t.spr.visible || !t.def.touch) continue;
+      if (Math.hypot(t.x - L.x, t.y - L.y) > 22) continue;
+      if (t.def.once) { GameState.data.picked.push(t.key); t.spr.setVisible(false); t.tag.setVisible(false); t.mark.setVisible(false); }
+      this.runAct(t.def.touch);
+      return;
+    }
+  }
+  private sparkle(x: number, y: number, col: number) {
+    for (let i = 0; i < 16; i++) {
+      const p = this.add.image(x + Phaser.Math.Between(-20, 20), y + Phaser.Math.Between(-20, 20), 'pixel').setTint(col).setScale(2).setDepth(9500);
+      this.tweens.add({ targets: p, y: p.y - 30, alpha: 0, duration: 700, delay: i * 20, onComplete: () => p.destroy() });
+    }
+  }
+  /** 지역의 별이 켜질 때 */
+  private starBurst() {
+    const cam = this.cameras.main;
+    this.cameras.main.flash(500, 255, 240, 180); Audio.sfx('star');
+    const s = this.add.image(480, 70, 'skystar').setScrollFactor(0).setDepth(9700).setScale(10).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: s, scale: 3, duration: 900, ease: 'Back.out' });
+    this.tweens.add({ targets: s, alpha: 0, delay: 1800, duration: 800, onComplete: () => s.destroy() });
+    void cam;
+  }
+
+  // ---------- 다래 측량 · 지도 ----------
+  private survey() {
+    const key = `survey.${this.mapId}`;
+    const before = this.things.filter(t => t.spr.visible).length;
+    GameState.setFlag(key);
+    this.refreshThings();
+    const hiddenNotes = (this.script?.hiddenNotes ?? []).filter(id => !GameState.data.bugNotes.includes(id)).length;
+    const shown = this.things.filter(t => t.spr.visible).length - before + hiddenNotes;
+    Audio.sfx('cloud');
+    this.showMap(true);
+    toast(shown > 0 ? `측량 완료! 지도에 숨은 것들이 드러났다.` : '측량 완료. 이 지역엔 더 숨은 게 없어 보인다.');
+  }
+  private showMap(survey: boolean) {
+    if (this.mapOverlay) { this.mapOverlay.destroy(); this.mapOverlay = undefined; }
+    const c = this.add.container(0, 0).setScrollFactor(0).setDepth(9900);
+    const s = Math.min(840 / this.cols, 400 / this.rows), w = this.cols * s, h = this.rows * s, x0 = (960 - w) / 2, y0 = 80;
+    const g = this.add.graphics();
+    g.fillStyle(0x0b0820, 0.85).fillRect(x0 - 12, y0 - 36, w + 24, h + 60).lineStyle(2, survey ? 0x7cc06a : 0xf5f0ff, 1).strokeRect(x0 - 12, y0 - 36, w + 24, h + 60);
+    for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) {
+      const t = this.grid[y][x];
+      const col = t === '.' || t === ',' || t === '=' ? 0x5a6fa8 : t === 'S' ? 0xffe27a : t === 'X' ? 0x9c93b8 : t === 'V' ? 0x7cc06a : t === 'g' ? 0xd9ccff : -1;
+      if (col >= 0) g.fillStyle(col, 1).fillRect(x0 + x * s, y0 + y * s, Math.ceil(s), Math.ceil(s));
+    }
+    const dot = (px: number, py: number, col: number, r = 3) => g.fillStyle(col, 1).fillRect(x0 + px / TILE * s - r, y0 + py / TILE * s - r, r * 2, r * 2);
+    for (const t of this.things) if (t.spr.visible) dot(t.x, t.y - 6, t.def.hidden ? 0xff7aa8 : 0xffd66b);
+    for (const n of this.notes) dot(n.spr.x, n.spr.y, 0xffffff, 2);
+    for (const f of this.folks) if (f.spr.visible) dot(f.x, f.y, 0x9fe0c4);
+    const pf = feetOf(this.pointSpot); dot(pf.x, pf.y, 0xffe27a, 4);
+    dot(this.lead.x, this.lead.y, 0xff5c7a, 4);
+    c.add(g);
+    c.add(this.add.text(x0, y0 - 28, `${survey ? '다래의 측량 — ' : ''}${this.region?.name ?? '구름 위의 마을'}`, { fontFamily: FONT, fontSize: '12px', color: '#f5f0ff' }));
+    let lx = x0 + w - 330;
+    for (const [col, name] of [[0xff5c7a, '나'], [0xffe27a, '포인트·오브젝트'], [0xff7aa8, '숨은 것'], [0x9fe0c4, '주민'], [0xffffff, '노트']] as [number, string][]) {
+      g.fillStyle(col, 1).fillRect(lx, y0 - 22, 8, 8);
+      const t = this.add.text(lx + 12, y0 - 28, name, { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' }); c.add(t); lx += 24 + t.width;
+    }
+    this.mapOverlay = c;
+    c.setAlpha(0); this.tweens.add({ targets: c, alpha: 1, duration: 200 });
+    this.time.delayedCall(survey ? 3200 : 4200, () => { if (this.mapOverlay === c) { this.tweens.add({ targets: c, alpha: 0, duration: 300, onComplete: () => c.destroy() }); this.mapOverlay = undefined; } });
+  }
+
+  // ---------- 어둠 · 오류 ----------
+  private makeDark() {
+    const key = 'darkvignette';
+    if (!this.textures.exists(key)) {
+      const t = this.textures.createCanvas(key, 960, 540)!; const cx = t.getContext();
+      const gr = cx.createRadialGradient(480, 300, 60, 480, 300, 520);
+      gr.addColorStop(0, 'rgba(8,6,24,0)'); gr.addColorStop(0.35, 'rgba(8,6,24,0.55)'); gr.addColorStop(1, 'rgba(8,6,24,0.97)');
+      cx.fillStyle = gr; cx.fillRect(0, 0, 960, 540); t.refresh();
+    }
+    this.darkImg = this.add.image(0, 0, key).setOrigin(0).setScrollFactor(0).setDepth(9600);
+    this.updateDark();
+  }
+  private updateDark() { if (this.darkImg) this.darkImg.setAlpha(GameState.data.leader === 'shiro' ? 0.25 : 0.95); }
+  private errorOverlay() {
+    if (this.preview) return;
+    const done = MQ_OF[this.mapId] ? !!GameState.flag(MQ_OF[this.mapId]) : true;
+    const level = (done ? 0 : 1) + (GameState.data.hoursLeft < 24 ? 1 : 0);
+    if (!level) return;
+    let seed = [...this.mapId].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7);
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const g = this.add.graphics().setDepth(-9);
+    const W = this.cols * TILE, H = this.rows * TILE;
+    for (let i = 0; i < level * 70; i++) {
+      const x = Math.floor(rnd() * W / 12) * 12, y = Math.floor(rnd() * H / 12) * 12, n = 1 + Math.floor(rnd() * 5);
+      for (let k = 0; k < n; k++) g.fillStyle(rnd() < 0.1 ? 0xff5c7a : rnd() < 0.2 ? 0x7cf0c8 : 0x0b0820, 0.85).fillRect(x + Math.floor(rnd() * 4) * 12, y + Math.floor(rnd() * 3) * 12, 12, 12);
+    }
+    this.tweens.add({ targets: g, alpha: 0.7, duration: 400, yoyo: true, repeat: -1 });
+    if (level >= 2) this.time.addEvent({ delay: 18000, loop: true, callback: () => { if (!UIState.busy) { glitchBurst(this, 0.4); Audio.sfx('glitch'); } } });
+  }
+
+  // ---------- 레이스 (SQ06) ----------
+  private startRace(flags: string[], secs: number, onWin: (c: Ctx) => void | Promise<void>) {
+    this.raceState = { flags, next: 0, t: secs, onWin };
+    GameState.setFlag('mode.race'); GameState.setFlag('race.next', 0);
+    this.refreshThings(); toast('출발! 깃발 1번부터 순서대로! Q(B)로 가속!');
+  }
+  private updateRace(dt: number) {
+    const r = this.raceState!; r.t -= dt;
+    this.modeText.setVisible(true).setText(`레이스 ${Math.max(0, Math.ceil(r.t))}초 · 깃발 ${r.next}/${r.flags.length}`);
+    const t = this.things.find(x => x.def.id === r.flags[r.next]);
+    if (t && Math.hypot(t.x - this.lead.x, t.y - this.lead.y) < 30) {
+      r.next++; GameState.setFlag('race.next', r.next); Audio.sfx('get'); this.refreshThings();
+      if (r.next >= r.flags.length) { const win = r.onWin; this.endRace(); toast('골인!'); this.runAct(win); return; }
+    }
+    if (r.t <= 0) { this.endRace(); toast('시간 초과! 오락실 주인에게 다시 말을 걸면 재도전할 수 있어.'); }
+  }
+  private endRace() { this.raceState = null; GameState.setFlag('mode.race', false); this.modeText.setVisible(false); this.refreshThings(); }
+
+  // ---------- 크론 추격 (MQ09) ----------
+  private startChase(startId: string, goalId: string, lamps: string[], onWin: (c: Ctx) => void | Promise<void>) {
+    const st = this.things.find(t => t.def.id === startId)!, gl = this.things.find(t => t.def.id === goalId)!;
+    lamps.forEach(l => { GameState.setFlag(`chase.${l}`, false); GameState.setFlag(`chase.${l}.used`, false); });
+    GameState.setFlag('mode.chase');
+    const L = this.lead;
+    const cron = (this.textures.exists('npc_cron_walk') ? this.add.sprite(st.x, st.y, 'npc_cron_walk', 0).setScale(1.35) : this.add.image(st.x, st.y, 'cron').setScale(1.2)).setOrigin(0.5, 1).setDepth(st.y) as Phaser.GameObjects.Sprite;
+    this.chaseState = { cron, x: st.x, y: st.y, start: { x: L.x, y: L.y }, goal: { x: gl.x, y: gl.y }, lamps, stun: 0, delay: 2.5, field: null, fieldT: 0, onWin };
+    this.refreshThings();
+    Audio.bgm('shadow');
+  }
+  private chaseField() {
+    const L = this.lead, W = this.cols, H = this.rows;
+    const f = new Int32Array(W * H).fill(-1);
+    const sx = Math.floor(L.x / TILE), sy = Math.floor((L.y - 4) / TILE);
+    const q = [sx + sy * W]; f[q[0]] = 0;
+    const pass = (t: string) => !BLOCK.has(t as any) && t !== 'g' && t !== ' ';
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i], x = c % W, y = (c / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const k = nx + ny * W; if (f[k] >= 0 || !pass(this.grid[ny][nx])) continue;
+        f[k] = f[c] + 1; q.push(k);
+      }
+    }
+    return f;
+  }
+  private async updateChase(dt: number) {
+    const c = this.chaseState!, L = this.lead;
+    this.modeText.setVisible(true).setText(c.stun > 0 ? '꽃등에 크론이 멈칫했다! 지금이야!' : '크론에게서 도망쳐! 빛나는 탈출구로! (Shift 달리기)');
+    c.fieldT -= dt;
+    if (c.fieldT <= 0 || !c.field) { c.field = this.chaseField(); c.fieldT = 0.25; }
+    if (c.delay > 0) c.delay -= dt;
+    else if (c.stun > 0) { c.stun -= dt; c.cron.setAlpha(0.5); }
+    else {
+      c.cron.setAlpha(1);
+      const W = this.cols, tx = Math.floor(c.x / TILE), ty = Math.floor((c.y - 4) / TILE);
+      let best = -1, bx = c.x, by = c.y;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = tx + dx, ny = ty + dy, v = c.field[nx + ny * W];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= this.rows || v < 0) continue;
+        if (best < 0 || v < best) { best = v; bx = nx * TILE + TILE / 2; by = (ny + 1) * TILE - 4; }
+      }
+      const here = c.field[tx + ty * W];
+      if (here === 0 || best < 0) { bx = L.x; by = L.y; }
+      const sp = 138 * (GameState.equipped('acc_bell') ? 0.85 : 1) * dt;
+      const dx = bx - c.x, dy = by - c.y, dd = Math.hypot(dx, dy) || 1;
+      c.x += dx / dd * Math.min(sp, dd); c.y += dy / dd * Math.min(sp, dd);
+      if (c.cron.anims && this.anims.exists('npc_cron-down')) { const k = `npc_cron-${Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down')}`; if (c.cron.anims.currentAnim?.key !== k) c.cron.play(k); }
+      c.cron.setPosition(c.x, c.y).setDepth(c.y);
+      // 꽃등
+      for (const l of c.lamps) {
+        if (!GameState.flag(`chase.${l}`) || GameState.flag(`chase.${l}.used`)) continue;
+        const t = this.things.find(x => x.def.id === l); if (!t) continue;
+        if (Math.hypot(t.x - c.x, t.y - c.y) < 4 * TILE) { c.stun = 3.5; GameState.setFlag(`chase.${l}.used`); this.sparkle(t.x, t.y - 30, 0xffd66b); Audio.sfx('star'); }
+      }
+    }
+    if (c.delay <= 0 && Math.hypot(c.x - L.x, c.y - L.y) < 20) {
+      this.lock = true;
+      await runDialogue('shadow_caught');
+      GameState.spend(1, '크론에게 붙잡힘');
+      L.x = c.start.x; L.y = c.start.y; this.hist = this.hist.map(() => ({ x: L.x, y: L.y, flip: false }));
+      this.followers().forEach(a => { a.x = L.x; a.y = L.y; });
+      c.x = c.start.x; c.y = c.start.y - 0; c.delay = 2.5; c.stun = 0; c.cron.setPosition(c.x, c.y);
+      c.lamps.forEach(l => GameState.setFlag(`chase.${l}.used`, false));
+      this.lock = false; return;
+    }
+    if (Math.hypot(c.goal.x - L.x, c.goal.y - L.y) < 30) {
+      const win = c.onWin;
+      this.tweens.add({ targets: c.cron, alpha: 0, duration: 600, onComplete: () => c.cron.destroy() });
+      this.chaseState = null; GameState.setFlag('mode.chase', false); this.modeText.setVisible(false);
+      this.refreshThings();
+      this.runAct(win);
+    }
+  }
+
+  // ---------- 메뉴: 동료 · 앨범 · 상점 ----------
+  private showParty() {
+    const d = GameState.data;
+    const lines = CHAR_IDS.map(id => {
+      const c = charById(id), b = d.bond[id] ?? 0, e = EPISODES.find(x => x.id === id)!;
+      const ep = GameState.flag(`ep.${id}`) ? `「${e.title}」 완료` : episodeOpen(e) ? `「${e.title}」 열림 → ${regionName(e.map)}` : `에피소드: ${regionName(e.map)} 별 + 유대 3`;
+      return `${c.name.padEnd(4, ' ')} ${'♥'.repeat(b)}${'♡'.repeat(5 - b)}  ${d.party.includes(id) ? ep : '(아직 못 찾음)'}`;
+    });
+    Bus.emit('menu', '동료 · 유대', [{ label: '닫기', act: () => {} }], lines.join('\n') + '\n\n유대는 같이 퍼즐을 풀거나, 쉬면서 대화하거나, 선택지로 오른다. 3이 되면 개인 에피소드가 열린다.');
+  }
+  private showAlbum() {
+    const d = GameState.data;
+    const lines = d.album.map(id => `■ ${regionName(id.split('_')[0])} — ${GameState.flag(`photo.${id}`) ?? id}`);
+    Bus.emit('menu', `으네의 앨범 ${d.album.length}/36`, [{ label: '닫기', act: () => {} }], lines.length ? lines.join('\n') : '아직 찍은 사진이 없다. 으네로 촬영 지점에서 능력을 쓰자.');
+  }
+  private openShop(title: string) {
+    const d = GameState.data;
+    const opts = SHOP.filter(s => !(s.acc && GameState.item(s.k) > 0)).map(s => ({ label: `${ITEM_NAMES[s.k].name} — 별조각 ${s.price}`, act: () => {
+      if (GameState.item('starShard') < s.price) return toast('별조각이 모자라.');
+      GameState.addItem('starShard', -s.price); GameState.addItem(s.k); Audio.sfx('get');
+      toast(`${ITEM_NAMES[s.k].name}을(를) 샀다.${s.acc ? ' 가방에서 장착할 수 있어.' : ''}`);
+    } }));
+    opts.push({ label: '닫기', act: () => {} });
+    Bus.emit('menu', title, opts, `가진 별조각: ${d.inventory.starShard ?? 0}\n별사탕: 설계자 권한 충전 · 차: 휴식 4시간 · 구름솜: 발판 2배\n액세서리 칸 ${GameState.equipSlots()}개`);
+  }
+
+  // ---------- 엔딩 ----------
+  private goEnding(kind: 'reset' | 'normal' | 'true' | 'secret') {
+    this.lock = true;
+    Audio.bgm(null);
+    const secret = kind === 'true' && countNotes(GameState.data.bugNotes) >= NOTE_TOTAL;
+    this.cameras.main.fadeOut(1200, kind === 'reset' ? 0 : 255, kind === 'reset' ? 0 : 255, kind === 'reset' ? 0 : 255);
+    this.cameras.main.once('camerafadeoutcomplete', async () => {
+      try { localStorage.setItem(`last-save:end-${kind}`, '1'); if (kind === 'reset') localStorage.setItem('last-save:loop', '1'); } catch { /* 저장소 없음 */ }
+      if (secret) { GameState.setFlag('secret.mode'); GameState.setFlag('arrive.trash', false); }
+      else await SaveManager.clear();
+      this.scene.start('Ending', { kind, secret });
+    });
+  }
+
   // ---------- 루프 ----------
   update(_t: number, dms: number) {
     if (!this.live) return;
@@ -694,6 +1214,7 @@ export class WorldScene extends Phaser.Scene {
     this.sky.tilePositionX = this.cameras.main.scrollX * 0.1;
     this.far.tilePositionX += dt * 6;
     this.abilityCd = Math.max(0, this.abilityCd - dt);
+    this.boost = Math.max(0, this.boost - dt);
 
     const busy = UIState.busy || this.lock;
     const L = this.lead;
@@ -702,15 +1223,16 @@ export class WorldScene extends Phaser.Scene {
       if (Input.take('menu')) this.openMainMenu();
       if (Input.take('quest')) this.showQuests();
       if (Input.take('bag')) this.showBag();
+      if (Input.take('map')) this.showMap(false);
       for (let n = 1; n <= 9; n++) if (Input.take(`num${n}` as any)) this.switchTo(CHAR_IDS[n - 1]);
       if (Input.take('switch')) this.cycle();
       if (Input.take('ability')) this.useAbility();
       if (Input.take('confirm')) this.interact();
 
-      const ax = Input.axis();
+      const ax0 = Input.axis(); const ax = this.mirrored ? { x: -ax0.x, y: ax0.y } : ax0;
       if (ax.x || ax.y) {
         moving = true;
-        const sp = (Input.running() ? RUN : SPEED) * ((window as any).__SPEED ?? 1);
+        const sp = (Input.running() ? RUN : SPEED) * ((window as any).__SPEED ?? 1) * (GameState.equipped('acc_feather') ? 1.1 : 1) * (this.boost > 0 ? 1.7 : 1);
         const nx = L.x + ax.x * sp * dt, ny = L.y + ax.y * sp * dt;
         const mx = this.boxFree(nx, L.y), my = this.boxFree(L.x, ny);
         if (mx) L.x = nx;
@@ -760,6 +1282,9 @@ export class WorldScene extends Phaser.Scene {
     // 근처 대상 강조
     const nearN = this.npcs.find(n => Math.hypot(n.x - L.x, n.y - L.y) < 46);
     this.npcs.forEach(n => n.bubble.setScale(n === nearN ? 1.25 : 1));
+    this.updateThings(busy);
+    if (this.raceState && !busy) this.updateRace(dt);
+    if (this.chaseState && !busy) this.updateChase(dt);
   }
 
   private place(a: Actor, moving: boolean, isLead = false) {

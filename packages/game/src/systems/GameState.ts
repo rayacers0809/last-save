@@ -13,12 +13,13 @@ class GameStateImpl {
     this.data = newSave(first);
     Story1.story.ResetState();
     Story1.setPlayer(first, charById(first).name);
+    try { Story1.story.variablesState['loop'] = localStorage.getItem('last-save:loop') === '1'; } catch { /* 저장소 없음 */ }
   }
 
   loadFrom(d: SaveData) {
     // 이전 버전 세이브 보정
     this.data = { ...newSave(d.firstPlayer), ...d };
-    this.data.inventory ??= { starShard: 0 }; this.data.bond ??= {}; this.data.picked ??= []; this.data.memories ??= { world: 0, core: [] };
+    this.data.inventory ??= { starShard: 0 }; this.data.bond ??= {}; this.data.picked ??= []; this.data.memories ??= { world: 0, core: [] }; this.data.memories.core ??= []; this.data.album ??= []; this.data.equip ??= [];
     Story1.story.ResetState();
     if (d.inkState) Story1.loadState(d.inkState);
     Story1.setPlayer(d.firstPlayer, charById(d.firstPlayer).name);
@@ -51,6 +52,17 @@ class GameStateImpl {
   addBond(id: string, n = 1) { this.data.bond[id] = Math.min(5, (this.data.bond[id] ?? 0) + n); }
   inParty(id: CharId) { return this.data.party.includes(id); }
   flag(k: string) { return this.data.flags[k]; }
+  /** 세계 기억 n번째를 되찾았다 */
+  world(n: number) { this.data.memories.world = Math.max(this.data.memories.world, n); Bus.emit('hud-refresh'); }
+  /** 빅윈 설계자 권한 최대 충전 수: 기억을 되찾을수록 늘어난다 */
+  bwMax() {
+    if (this.flag('choice.shadow') === 'hold' && !this.flag('mq.final')) return 1;
+    return 1 + Math.floor(this.data.memories.world / 2) + (this.flag('mq.shadow') ? 2 : 0);
+  }
+  bwCharges() { const v = this.flag('bw.charge'); return typeof v === 'number' ? v : this.bwMax(); }
+  setBw(n: number) { this.setFlag('bw.charge', Math.max(0, n)); Bus.emit('hud-refresh'); }
+  equipped(k: string) { return this.data.equip.includes(k); }
+  equipSlots() { return 1 + (this.flag('sq.04') ? 1 : 0); }
   setFlag(k: string, v: boolean | string | number = true) { this.data.flags[k] = v; }
 }
 

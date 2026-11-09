@@ -31,8 +31,14 @@ export class TitleScene extends Phaser.Scene {
 
   constructor() { super('Title'); }
 
-  async create() {
-    starfield(this);
+  async create(data?: { noStars?: boolean }) {
+    const stars = starfield(this);
+    if (data?.noStars) stars.forEach(s => { this.tweens.killTweensOf(s); s.setAlpha(0); });
+    let secret = false; try { secret = localStorage.getItem('last-save:end-secret') === '1'; } catch { /* 없음 */ }
+    if (secret) {
+      const t2 = this.add.text(W - 20, 20, 'LAST SAVE 2', { fontFamily: FONT, fontSize: '12px', color: '#7cf0c8' }).setOrigin(1, 0);
+      this.tweens.add({ targets: t2, alpha: 0.15, duration: 700, yoyo: true, repeat: -1 });
+    }
     Audio.bgm('title');
     // 아홉 명 실루엣 라인업
     CHAR_IDS.forEach((id, i) => {
@@ -42,7 +48,7 @@ export class TitleScene extends Phaser.Scene {
     });
     this.add.text(W / 2, 92, 'LAST SAVE', { fontFamily: FONT_B, fontSize: '48px', color: '#ffd66b' }).setOrigin(0.5).setShadow(4, 4, '#ff5fa2', 0, false, true);
     this.add.text(W / 2, 140, '마지막 저장점', { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' }).setOrigin(0.5);
-    this.add.text(W / 2, 520, isTouchDevice() ? 'P1 PROTOTYPE · A 버튼으로 결정 · ⚙ 설정' : 'P1 PROTOTYPE · WASD 이동 · SPACE 결정 · F 전체화면', { fontFamily: FONT, fontSize: '12px', color: '#8d84bd' }).setOrigin(0.5);
+    this.add.text(W / 2, 520, isTouchDevice() ? 'A 버튼으로 결정 · ⚙ 설정' : 'WASD 이동 · SPACE 결정 · Q 능력 · M 지도 · F 전체화면', { fontFamily: FONT, fontSize: '12px', color: '#8d84bd' }).setOrigin(0.5);
 
     const save = await SaveManager.load();
     this.opts = [{ label: '새로 시작', act: () => this.scene.start('Select') }];

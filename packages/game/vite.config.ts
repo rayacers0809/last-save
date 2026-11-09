@@ -10,7 +10,9 @@ function inkPlugin(): Plugin {
     name: 'ink-compile',
     transform(_code, id) {
       if (!id.endsWith('.ink')) return null;
-      const src = readFileSync(id, 'utf8');
+      // INCLUDE 파일명.ink 줄은 같은 폴더의 파일 내용으로 바꿔 넣는다
+      const dir = id.replace(/[^/\\]+$/, '');
+      const src = readFileSync(id, 'utf8').replace(/^INCLUDE\s+(\S+)\s*$/gm, (_m, f) => { this.addWatchFile(dir + f); return readFileSync(dir + f, 'utf8'); });
       const errors: string[] = [];
       const compiler = new (inkjs as any).Compiler(src, new (inkjs as any).CompilerOptions(null, [], false, (msg: string, type: number) => {
         if (type === 2) errors.push(msg);

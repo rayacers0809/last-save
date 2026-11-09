@@ -1,6 +1,6 @@
 // 키보드(WASD)와 모바일 버튼 입력을 하나로 모은다. 게임 코드는 입력 출처를 몰라도 된다.
 export type Action =
-  | 'confirm' | 'ability' | 'menu' | 'switch' | 'quest' | 'bag'
+  | 'confirm' | 'ability' | 'menu' | 'switch' | 'quest' | 'bag' | 'map'
   | 'up' | 'down' | 'left' | 'right'
   | 'num1' | 'num2' | 'num3' | 'num4' | 'num5' | 'num6' | 'num7' | 'num8' | 'num9';
 
@@ -8,7 +8,7 @@ const KEYMAP: Record<string, Action | 'run'> = {
   KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
   KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
   Space: 'confirm', KeyE: 'confirm', Enter: 'confirm', NumpadEnter: 'confirm',
-  KeyQ: 'ability', Escape: 'menu', Tab: 'switch', KeyJ: 'quest', KeyI: 'bag',
+  KeyQ: 'ability', Escape: 'menu', Tab: 'switch', KeyJ: 'quest', KeyI: 'bag', KeyM: 'map',
   ShiftLeft: 'run', ShiftRight: 'run',
   Digit1: 'num1', Digit2: 'num2', Digit3: 'num3', Digit4: 'num4', Digit5: 'num5',
   Digit6: 'num6', Digit7: 'num7', Digit8: 'num8', Digit9: 'num9',

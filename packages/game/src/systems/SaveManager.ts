@@ -16,6 +16,8 @@ export interface SaveData {
   bond: Record<string, number>;
   picked: string[];          // 주운 필드 아이템 id (별 조각, 편지)
   memories: { world: number; core: string[] };
+  album: string[];           // 으네가 찍은 사진 id
+  equip: string[];           // 장착한 액세서리
   inkState?: string;
   savedAt: number;
 }
@@ -41,6 +43,6 @@ export function newSave(first: CharId): SaveData {
   return {
     version: 1, firstPlayer: first, leader: first, party: [first],
     pos: { x: 0, y: 0 }, flags: {}, hoursLeft: 72, bugNotes: [], brokenRocks: [], savedAt: 0,
-    inventory: { starShard: 0 }, bond: {}, picked: [], memories: { world: 0, core: [] },
+    inventory: { starShard: 0 }, bond: {}, picked: [], memories: { world: 0, core: [] }, album: [], equip: [],
   };
 }

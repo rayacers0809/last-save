@@ -193,9 +193,27 @@ function bloom(c: CanvasRenderingContext2D, petal: string, hi: string) {
 }
 
 /** 구름 주민 (몽글몽글한 구름 몸 + 모자 색으로 구분) */
-export function makeFolk(scene: Phaser.Scene, key: string, hat: string, kind: 'piko' | 'grandma' | 'folk') {
+export type FolkKind = 'piko' | 'grandma' | 'folk' | 'robot' | 'cat' | 'spirit' | 'cron' | 'kid';
+export function makeFolk(scene: Phaser.Scene, key: string, hat: string, kind: FolkKind) {
   if (scene.textures.exists(key)) return;
   const t = scene.textures.createCanvas(key, 36, 40)!; const c = t.getContext();
+  if (kind === 'robot') {
+    px(c, 4, 3, 10, 9, '#b9c3dc'); px(c, 5, 4, 8, 6, '#1b2440'); px(c, 6, 6, 2, 2, '#7cf0c8'); px(c, 10, 6, 2, 2, '#7cf0c8');
+    px(c, 8, 0, 2, 3, '#8a93b0'); px(c, 8, 0, 2, 1, hat); px(c, 5, 12, 8, 5, '#9aa3c4'); px(c, 3, 13, 2, 3, '#8a93b0'); px(c, 13, 13, 2, 3, '#8a93b0');
+    px(c, 6, 17, 2, 2, '#6f7896'); px(c, 10, 17, 2, 2, '#6f7896'); t.refresh(); return;
+  }
+  if (kind === 'cat') {
+    px(c, 4, 8, 10, 9, '#1d1a52'); px(c, 4, 5, 3, 3, '#1d1a52'); px(c, 11, 5, 3, 3, '#1d1a52'); px(c, 6, 10, 2, 2, '#ffd66b'); px(c, 10, 10, 2, 2, '#ffd66b');
+    px(c, 8, 13, 2, 1, '#e8869a'); px(c, 14, 14, 3, 1, '#1d1a52'); px(c, 16, 11, 1, 3, '#1d1a52'); t.refresh(); return;
+  }
+  if (kind === 'cron') {
+    px(c, 6, 0, 6, 6, '#0b0820'); px(c, 4, 6, 10, 12, '#0b0820'); px(c, 5, 18, 3, 2, '#0b0820'); px(c, 10, 18, 3, 2, '#0b0820');
+    px(c, 7, 2, 4, 1, hat); px(c, 5, 9, 1, 1, '#7cf0c8'); px(c, 12, 13, 1, 1, '#ff5c7a'); t.refresh(); return;
+  }
+  if (kind === 'spirit') {
+    px(c, 5, 2, 8, 12, 'rgba(201,232,255,.75)'); px(c, 4, 5, 10, 8, 'rgba(201,232,255,.75)'); px(c, 6, 3, 3, 4, '#ffffff');
+    px(c, 7, 7, 1, 2, '#3b3560'); px(c, 10, 7, 1, 2, '#3b3560'); px(c, 5, 14, 2, 3, 'rgba(201,232,255,.5)'); px(c, 11, 14, 2, 4, 'rgba(201,232,255,.5)'); t.refresh(); return;
+  }
   const W = '#ffffff', S = '#d4d9f6', D = '#9aa3dd', E = '#3b3560';
   // 몸
   px(c, 3, 8, 12, 9, S); px(c, 2, 10, 14, 6, S); px(c, 4, 7, 10, 9, W); px(c, 3, 9, 12, 6, W);
@@ -209,6 +227,8 @@ export function makeFolk(scene: Phaser.Scene, key: string, hat: string, kind: 'p
     px(c, 4, 5, 10, 2, '#f2b8c6'); px(c, 3, 6, 12, 1, '#f2b8c6');
     px(c, 6, 14, 6, 4, hat); px(c, 6, 14, 6, 1, '#e5cbb8');
     px(c, 5, 9, 3, 1, '#bfb6e0'); px(c, 10, 9, 3, 1, '#bfb6e0');
+  } else if (kind === 'kid') { // 작은 몸 + 리본
+    px(c, 4, 6, 3, 2, hat); px(c, 11, 6, 3, 2, hat); px(c, 8, 6, 2, 1, hat);
   } else { // 작은 모자
     px(c, 6, 4, 6, 3, hat); px(c, 5, 6, 8, 1, hat);
   }

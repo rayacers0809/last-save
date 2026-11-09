@@ -5,7 +5,7 @@
 import type { RTile, Prop } from '../gfx/region';
 
 export interface MapNpc { id: string; name: string; x: number; y: number; hat: string; lines: string[] }
-export interface MapSign { x: number; y: number; text: string }
+export interface MapSign { x: number; y: number; text: string; key?: string }
 export interface MapNote { id: string; x: number; y: number; text: string }
 export interface RegionMap {
   id: string; name: string; act: number; theme: string; bgm: string;
@@ -420,7 +420,7 @@ for (const r of REGIONS) {
   r.npcs = r.npcs.map(n => { const v = at(d.npcs, n.id); return v ? { ...n, x: v[0], y: v[1] } : n; });
   r.notes = r.notes.map(n => { const v = at(d.notes, n.id); return v ? { ...n, x: v[0], y: v[1] } : n; });
   const keys = Object.keys(d.signs ?? {});
-  r.signs = r.signs.slice(0, keys.length).map((sg, i) => { const v = d.signs[keys[i]]; return { ...sg, x: v[0], y: v[1] }; });
+  r.signs = r.signs.slice(0, keys.length).map((sg, i) => { const v = d.signs[keys[i]]; return { ...sg, x: v[0], y: v[1], key: keys[i] }; });
   r.build = () => ({ grid: (d.grid as string[]).map(row => [...row] as RTile[]), props: [] });
 }
 

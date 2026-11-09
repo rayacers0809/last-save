@@ -5,6 +5,8 @@ import { Story1, type Line } from '../systems/StoryRunner';
 import { Bus, GameState } from '../systems/GameState';
 import { charById, CHAR_IDS, type CharId } from '../data/characters';
 import { Audio } from '../systems/AudioManager';
+import { folkName, folkPortrait } from '../data/folks';
+import { NOTE_TOTAL, countNotes } from '../data/quests';
 
 export const UIState = { busy: false };
 export const FONT = 'Galmuri11, "Apple SD Gothic Neo", sans-serif';
@@ -66,12 +68,12 @@ export class UIScene extends Phaser.Scene {
     this.hud = this.add.container(0, 0).setVisible(false).setDepth(5);
     const hg = this.add.graphics();
     hg.fillStyle(0x1a1438, 0.82).fillRect(12, 12, 236, 64).lineStyle(2, 0xf5f0ff, 1).strokeRect(12, 12, 236, 64);
-    hg.fillStyle(0x1a1438, 0.82).fillRect(W - 236, 12, 224, 64).lineStyle(2, 0xf5f0ff, 1).strokeRect(W - 236, 12, 224, 64);
+    hg.fillStyle(0x1a1438, 0.82).fillRect(W - 312, 12, 300, 64).lineStyle(2, 0xf5f0ff, 1).strokeRect(W - 312, 12, 300, 64);
     this.hudPor = this.add.image(44, 44, 'rumung_por').setDisplaySize(52, 52);
     this.hudName = this.add.text(80, 20, '', { fontFamily: FONT_B, fontSize: '24px' });
     this.hudAbility = this.add.text(80, 50, '', { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' });
-    this.hudTime = this.add.text(W - 224, 20, '', { fontFamily: FONT_B, fontSize: '24px', color: '#ffd66b' });
-    this.hudParty = this.add.text(W - 224, 50, '', { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' });
+    this.hudTime = this.add.text(W - 300, 20, '', { fontFamily: FONT_B, fontSize: '24px', color: '#ffd66b' });
+    this.hudParty = this.add.text(W - 300, 50, '', { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' });
     this.hud.add([hg, this.hudPor, this.hudName, this.hudAbility, this.hudTime, this.hudParty]);
 
     this.menuBox = this.add.container(0, 0).setDepth(20).setVisible(false);
@@ -99,10 +101,10 @@ export class UIScene extends Phaser.Scene {
     const d = GameState.data, c = charById(d.leader);
     this.hudPor.setTexture(`${c.id}_por`).setDisplaySize(52, 52);
     this.hudName.setText(c.name).setColor(c.color);
-    this.hudAbility.setText(`Q · ${c.ability}`);
+    this.hudAbility.setText(`Q · ${c.ability}${c.id === 'bigwin' ? ` (${GameState.bwCharges()}/${GameState.bwMax()})` : ''}`);
     const h = Math.max(0, Math.floor(d.hoursLeft)), m = Math.round((d.hoursLeft - h) * 60);
     this.hudTime.setText(`초기화까지 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    this.hudParty.setText(`별지기 ${d.party.length}/9 · 기억 ${d.memories?.world ?? 0}/8 · 노트 ${d.bugNotes.length}/30`);
+    this.hudParty.setText(`동료 ${d.party.length}/9 · 기억 ${d.memories?.world ?? 0}/8 · 핵심 ${d.memories?.core?.length ?? 0} · 노트 ${countNotes(d.bugNotes)}/${NOTE_TOTAL}`);
   }
 
   // ---------- 토스트 ----------
@@ -156,19 +158,20 @@ export class UIScene extends Phaser.Scene {
     g.lineStyle(2, sys ? 0xff5c7a : 0xf5f0ff, 1).strokeRect(24, 370, W - 48, 150);
     const portrait = !sys && !narr;
     this.por.setVisible(portrait); this.porFrame.clear();
+    const expr = l.tags.find(t => t.startsWith('e_'))?.slice(2);
+    const fitPor = (key: string) => { this.por.setTexture(key); const f = this.por.frame; const k = Math.min(104 / f.width, 104 / f.height); this.por.setDisplaySize(f.width * k, f.height * k); };
     if (portrait) {
-      if (point) this.por.setTexture('point_por').setDisplaySize(104, 104);
+      if (point) fitPor(folkPortrait(this, 'point', expr) ?? 'point_por');
       else if (CHAR_IDS.includes(who as CharId)) this.por.setTexture(`${who}_por`).setDisplaySize(104, 104);
       this.porFrame.lineStyle(2, 0x6a5cc0, 1).strokeRect(43, 395, 106, 106);
     }
     let name = '', color = '#ffffff';
     const folk = !CHAR_IDS.includes(who as CharId) && !point && !sys && !narr;
-    if (ext) { name = ext.name; color = '#cfe0ff'; this.por.setTexture(ext.por).setDisplaySize(94, 104); }
+    if (ext) { name = ext.name; color = '#cfe0ff'; fitPor(folkPortrait(this, ext.por.replace(/^folk_/, ''), expr) ?? ext.por); }
     else if (point) { name = '포인트'; color = '#ffe27a'; }
     else if (folk) {
-      const names: Record<string, string> = { piko: '피코', grandma: '빵집 할머니', nb_a: '구름 주민', nb_b: '구름 주민', nb_c: '구름 주민' };
-      name = names[who] ?? '구름 주민'; color = '#cfe0ff';
-      this.por.setTexture(`folk_${who}`).setDisplaySize(94, 104);
+      name = folkName(who); color = who === 'cron' ? '#9aa6ff' : '#cfe0ff';
+      fitPor(folkPortrait(this, who, expr) ?? 'point_por');
     }
     else if (!sys && !narr) { const c = charById(who as CharId); name = c.name; color = c.color; }
     this.nameT.setText(name).setColor(color).setX(portrait ? 168 : 56);
