@@ -42,12 +42,13 @@ class GameStateImpl {
   /** 72시간 타이머 소모. 0이 되면 초기화 엔딩 */
   spend(hours: number, reason: string) {
     if (this.data.flags.preview) return;
+    if (this.data.difficulty === 'easy') hours = hours / 2;
     this.data.hoursLeft = Math.max(0, this.data.hoursLeft - hours);
     Bus.emit('hud-refresh');
     Bus.emit('time-spent', hours, reason);
     if (this.data.hoursLeft <= 0) Bus.emit('time-up');
   }
-  addItem(k: string, n = 1) { this.data.inventory[k] = (this.data.inventory[k] ?? 0) + n; Bus.emit('hud-refresh'); }
+  addItem(k: string, n = 1) { this.data.inventory[k] = (this.data.inventory[k] ?? 0) + n; Bus.emit('hud-refresh'); if (n > 0) Bus.emit('item-get', k, n); }
   item(k: string) { return this.data.inventory[k] ?? 0; }
   addBond(id: string, n = 1) { this.data.bond[id] = Math.min(5, (this.data.bond[id] ?? 0) + n); }
   inParty(id: CharId) { return this.data.party.includes(id); }

@@ -77,3 +77,11 @@ body.touch #touch { display: block; position: absolute; inset: 0; pointer-events
 .auth-go { font: inherit; font-size: 18px; padding: 10px; background: #ffd66b; color: #1a1438; border: 0; cursor: pointer; }
 .auth-go:disabled { opacity: .6; cursor: wait; }
 .auth button:focus-visible { outline: 3px solid #7cf0c8; outline-offset: 2px; }
+
+.rep-title { margin: 0; font-size: 18px; color: #ffd66b; font-weight: normal; }
+.rep-where { color: #7cf0c8; font-weight: normal; }
+.auth textarea { font: inherit; font-size: 15px; padding: 8px 12px; background: #0f0a26; color: #f5f0ff; border: 2px solid #6a5cc0; border-radius: 0; resize: vertical; }
+.auth textarea:focus { outline: none; border-color: #ffd66b; }
+.rep-row { display: flex; gap: 8px; }
+.rep-row > * { flex: 1; }
+.rep-cancel { font: inherit; font-size: 16px; padding: 10px; background: #241b4a; color: #c9c0ef; border: 2px solid #4a3d86; cursor: pointer; }

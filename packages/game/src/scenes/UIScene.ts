@@ -86,6 +86,9 @@ export class UIScene extends Phaser.Scene {
       this.box.setVisible(true); this.step();
     });
     Bus.on('toast', (t: string) => this.showToast(t));
+    Bus.on('item-get', (k: string, n: number) => this.itemPop(k, n));
+    Bus.on('wipe', (dir: 'out' | 'in', done?: () => void) => this.wipe(dir, done));
+    Bus.on('title-card', (kicker: string, name: string) => this.titleCard(kicker, name));
     Bus.on('hud', (on: boolean) => { this.hud.setVisible(on); this.refreshHud(); });
     Bus.on('hud-refresh', () => this.refreshHud());
     Bus.on('ui-reset', () => {
@@ -218,6 +221,63 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- 메뉴 ----------
+  // ---------- 지역 전환 ----------
+  private wipeG?: Phaser.GameObjects.Graphics;
+  private wipeCells: { x: number; y: number; t: number; star: boolean }[] = [];
+  /** 픽셀 마름모가 대각선으로 번지며 화면을 덮고(out) 걷히는(in) 전환 */
+  private wipe(dir: 'out' | 'in', done?: () => void) {
+    const S = 40;
+    if (!this.wipeCells.length) for (let y = 0; y <= H / S; y++) for (let x = 0; x <= W / S; x++)
+      this.wipeCells.push({ x: x * S + S / 2, y: y * S + S / 2, t: ((x / (W / S)) * 0.55 + (y / (H / S)) * 0.25) + Math.random() * 0.2, star: Math.random() < 0.06 });
+    this.wipeG?.destroy();
+    const g = this.wipeG = this.add.graphics().setDepth(5000);
+    const draw = (p: number) => {
+      g.clear();
+      for (const c of this.wipeCells) {
+        let k = Math.max(0, Math.min(1, (p - c.t * 0.8) / 0.2));
+        if (dir === 'in') k = 1 - Math.max(0, Math.min(1, (p - c.t * 0.8) / 0.2));
+        if (k <= 0) continue;
+        const r = (S * 0.75) * k;
+        g.fillStyle(0x0f0a26, 1).fillPoints([{ x: c.x, y: c.y - r }, { x: c.x + r, y: c.y }, { x: c.x, y: c.y + r }, { x: c.x - r, y: c.y }], true);
+        if (c.star && k > 0.4 && k < 1) g.fillStyle(0xffd66b, k).fillRect(c.x - 2, c.y - 2, 4, 4);
+      }
+    };
+    draw(0);
+    this.tweens.addCounter({ from: 0, to: 1, duration: dir === 'out' ? 520 : 620, ease: 'Sine.inOut', onUpdate: tw => draw(tw.getValue()),
+      onComplete: () => { if (dir === 'in') { g.destroy(); if (this.wipeG === g) this.wipeG = undefined; } else draw(1); done?.(); } });
+  }
+  /** 아이템을 얻으면 화면 가운데(플레이어 위)에서 아이콘이 튀어 올라 HUD 쪽으로 날아간다 */
+  private popCount = 0;
+  private itemPop(k: string, n: number) {
+    if (!this.textures.exists(`item_${k}`)) return;
+    const i = this.popCount++ % 4, x = W / 2 + (i - 1.5) * 26, y = H / 2 - 40;
+    const ic = this.add.image(x, y, `item_${k}`).setDepth(4500).setDisplaySize(8, 8).setAlpha(0);
+    const tx = this.add.text(x, y - 34, n > 1 ? `+${n}` : '+1', { fontFamily: FONT_B, fontSize: '16px', color: '#ffd66b', stroke: '#160f33', strokeThickness: 4 }).setOrigin(0.5).setDepth(4501).setAlpha(0);
+    this.tweens.chain({ targets: ic, tweens: [
+      { displayWidth: 56, displayHeight: 56, alpha: 1, y: y - 18, duration: 260, ease: 'Back.out' },
+      { y: y - 24, duration: 420 },
+      { x: W - 150, y: 46, displayWidth: 20, displayHeight: 20, alpha: 0.2, duration: 520, ease: 'Cubic.in', onComplete: () => ic.destroy() },
+    ] });
+    this.tweens.add({ targets: tx, alpha: 1, y: y - 50, duration: 300, yoyo: true, hold: 500, onComplete: () => tx.destroy() });
+    for (let j = 0; j < 8; j++) {
+      const a = (j / 8) * Math.PI * 2, sp = this.add.rectangle(x, y - 18, 4, 4, 0xfff6d6).setDepth(4499);
+      this.tweens.add({ targets: sp, x: x + Math.cos(a) * 40, y: y - 18 + Math.sin(a) * 40, alpha: 0, duration: 500, ease: 'Cubic.out', onComplete: () => sp.destroy() });
+    }
+  }
+  /** 도착한 지역 이름 카드 */
+  private titleCard(kicker: string, name: string) {
+    const c = this.add.container(W / 2, 118).setDepth(4000).setAlpha(0);
+    const k = this.add.text(0, -26, kicker, { fontFamily: FONT, fontSize: '16px', color: '#ffd66b' }).setOrigin(0.5);
+    const t = this.add.text(0, 6, name, { fontFamily: FONT_B, fontSize: '32px', color: '#f5f0ff', stroke: '#160f33', strokeThickness: 6 }).setOrigin(0.5);
+    const lw = t.width / 2 + 40;
+    const g = this.add.graphics();
+    g.fillStyle(0xffd66b, 1).fillRect(-lw, 32, lw - 14, 2).fillRect(14, 32, lw - 14, 2);
+    g.fillPoints([{ x: 0, y: 27 }, { x: 6, y: 33 }, { x: 0, y: 39 }, { x: -6, y: 33 }], true);
+    c.add([g, k, t]);
+    this.tweens.add({ targets: c, alpha: 1, y: 128, duration: 500, ease: 'Sine.out' });
+    this.tweens.add({ targets: c, alpha: 0, y: 112, delay: 2300, duration: 600, onComplete: () => c.destroy() });
+  }
+
   private grid: GridCell[] = [];
   private gridIdx = 0;
   private gridFrames: Phaser.GameObjects.Rectangle[] = [];
@@ -245,6 +305,7 @@ export class UIScene extends Phaser.Scene {
         const cx = gx + (i % gCols) * cell + cell / 2, cy = y + 64 + Math.floor(i / gCols) * cell + cell / 2;
         const fr = this.add.rectangle(cx, cy, cell - 8, cell - 8, 0x0f0a26).setStrokeStyle(2, c.on ? 0x7cf0c8 : 0x4a3d86).setInteractive({ useHandCursor: true });
         fr.on('pointerover', () => { this.gridIdx = i; this.paintGrid(); });
+        fr.on('pointerdown', () => { this.gridIdx = i; this.paintGrid(); });
         this.gridFrames.push(fr); this.menuBox.add(fr);
         if (this.textures.exists(c.icon)) this.menuBox.add(this.add.image(cx, cy - 4, c.icon).setDisplaySize(52, 52));
         if ((c.count ?? 1) > 1) this.menuBox.add(this.add.text(cx + cell / 2 - 10, cy + cell / 2 - 10, `×${c.count}`, { fontFamily: FONT_B, fontSize: '14px', color: '#ffffff', stroke: '#0b0820', strokeThickness: 4 }).setOrigin(1, 1));

@@ -18,6 +18,7 @@ export default function Basics() {
 
       <h2>72시간</h2>
       <p>화면 위 시간은 실제 시간이 아니라 <b>행동</b>으로 줄어든다. 0이 되면 초기화 엔딩.</p>
+      <p>새로 시작할 때 고르는 <b>시간 흐름</b>에 따라 다르다. <b>여유롭게</b>는 아래 시간이 모두 절반만 흐르고(서브 퀘스트·에피소드까지 전부 해 볼 수 있다), <b>72시간 그대로</b>는 표 그대로 흐른다. 시작한 뒤에는 바꿀 수 없다.</p>
       <div className="wiki-table-wrap"><table className="wiki-table">
         <thead><tr><th scope="col">행동</th><th scope="col">시간</th></tr></thead>
         <tbody>
@@ -31,6 +32,12 @@ export default function Basics() {
         </tbody>
       </table></div>
       <p className="wiki-tip">걸어 다니고, 대화하고, 퍼즐 화면을 여는 것만으로는 시간이 안 간다. 퍼즐은 Esc로 그냥 나와도 손해 없음.</p>
+
+      <h2>힌트 · 버그 제보</h2>
+      <ul className="wiki-list">
+        <li>Esc(모바일 ≡) → <b>힌트</b>: 지금 할 메인 퀘스트, 누구로 바꿔야 하는지, 열린 에피소드를 알려 준다. 퀘스트 창(J)에서도 볼 수 있다.</li>
+        <li>Esc → <b>버그 제보</b>: 막힌 길이나 이상한 점을 적으면 지금 위치와 함께 보내진다.</li>
+      </ul>
 
       <h2>저장 · 휴식 (포인트 ★)</h2>
       <ul className="wiki-list">

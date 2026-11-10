@@ -18,6 +18,7 @@
 | 4막 | 마지막 저장소 | MQ10 마지막 저장점 | **크론 최종 이벤트** (기억마다 만든 사람 고르기) → 최종 선택 |
 | 시크릿 | 휴지통 섬 | — | 트루 엔딩 + 버그 노트 27개 |
 
+- 새로 시작할 때 시간 흐름을 고른다: **여유롭게**(모든 시간 비용 절반, 처음이라면 추천) / **72시간 그대로**
 - 막 안에서는 지역 순서를 자유롭게 고른다. 하늘 정류장에서 이동 (처음 가는 곳 2시간, 가 본 곳 1시간)
 - 엔딩: **초기화**(시간 0 또는 "저장하지 않는다"), **노멀**(세계 기억 8), **트루**(+핵심 기억 9 + 저장 열쇠 + "새 기억을 만든다"), **시크릿**(트루 + 버그 노트 27)
 - 보스는 HP 전투 없이 안정도 게이지 퍼즐. 실패하면 1시간이 흐르고 다시 도전
@@ -25,6 +26,8 @@
 - 유대 0~5: 퍼즐·서브 퀘스트·휴식 대화(12종)·선택지로 오른다. 유대 5면 최종장에 추가 대사
 - 수집: 세계 기억 8, 핵심 기억 9, 버그 노트 27 (일부는 다래 측량으로만 보임), 앨범 사진 36 (으네로 촬영)
 - 상점 (빵집 할머니 · 정원사 라일 · 그림자 상인): 별사탕(빅윈 권한 충전), 따뜻한 차(휴식 4시간), 구름솜(발판 2배), 액세서리 3종
+- 일시정지(Esc/≡) → **힌트**: 지금 할 메인 퀘스트, 바꿔야 할 캐릭터, 열린 에피소드 · **버그 제보**: 위치와 함께 Supabase `ls_reports`에 저장
+- 연출: 지역 이동 시 픽셀 마름모 전환 + 지역 이름 카드 + BGM 크로스페이드, 지역마다 분위기 입자(`src/gfx/ambient.ts`), 아이템 획득 시 아이콘 팝업
 - 오류 진행도: 별을 못 켠 지역은 검은 픽셀이 번져 있고, 남은 시간이 24시간 아래면 더 심해진다
 
 ## 계정 · 저장 (Supabase)
@@ -32,6 +35,7 @@
 - 게임을 시작하려면 로그인해야 한다. 회원가입은 아이디·비밀번호만 (이메일 인증 없음), 가입하면 바로 로그인된다.
 - 포인트(★)에서 저장하면 계정에 저장되고, 다른 기기에서 같은 아이디로 로그인해도 이어할 수 있다. 서버에 닿지 않을 때만 이 기기에 사본을 둔다.
 - Supabase 프로젝트 `last-save` (서울 리전). 테이블 `ls_players` · `ls_sessions` · `ls_saves`는 직접 읽을 수 없고 `ls_signup` `ls_login` `ls_me` `ls_save` `ls_load` `ls_clear` `ls_logout` 함수로만 접근한다. 비밀번호는 bcrypt로 해시, 로그인 토큰은 해시로 저장(60일).
+- 엔딩 통계: `ls_end`(계정당 엔딩별 1회 기록), `ls_stats`(공개: 가입 인원·엔딩별 인원 — 엔딩 화면과 사이트에 표시). 버그 제보: `ls_report`(하루 20건, 500자). 제보 확인은 Supabase 대시보드에서 `ls_reports` 테이블
 - 스키마: `supabase/migrations/`, 접속 주소·공개 키: `packages/game/src/config.ts`
 
 ## 9명의 능력
@@ -82,6 +86,7 @@ npm run build:single   # dist-single/index.html 한 파일 빌드
 | 캐릭터 이름 · 색 · 능력 이름 | `src/data/characters.ts` |
 | NPC 이름 · 그림 | `src/world/maps.ts`(이름·대사), `src/assets/npc/<id>.png`(필드 그림), `<id>_por_smile/surprise/sad.png`(표정) |
 | 맵 충돌 · 위치 | `tools/maps/config.py` → `python3 tools/maps/build.py` → `python3 tools/maps/collision.py` (사물·길 구분: `collision_fix.py`에 맵별로 막을 칸 `block` · 열 칸 `open` 사각형, 타일 좌표) → `python3 tools/maps/occlusion.py` (가로등·거울 같은 소품 뒤로 캐릭터가 가려지는 조각) → `python3 tools/maps/check.py` (도달성) |
+| 전체 진행 검사 | `python3 tools/test/e2e.py` (처음부터 트루 엔딩까지 자동 진행) |
 | 막힌 길 검사 | 빌드 후 `dist`를 8766 포트로 띄우고 `python3 tools/test/walk_all.py cloud,mirror,...` (모든 오브젝트·NPC까지 실제로 걸어 봄) |
 | 키 배치 | `src/systems/InputManager.ts` |
 | 저장 구조 | `src/systems/SaveManager.ts` (IndexedDB, 내보내기/가져오기 함수 포함) |
@@ -100,5 +105,7 @@ Next.js 정적 사이트: 타이틀 화면 랜딩, 세이브 슬롯(캐릭터 �
 cd packages/game && npm install && npm run build   # 게임 먼저
 cd ../site && npm install && npm run build         # out/ 폴더가 완성된 사이트
 ```
+
+공유 미리보기 이미지 `public/og.jpg`. 배포 주소를 빌드 환경 변수 `SITE_URL`(예: `https://last-save.xxx.workers.dev`)로 주면 절대 주소로 들어간다.
 
 Cloudflare Workers(Git 연결): 빌드 명령 `cd packages/game && npm ci && npm run build && cd ../site && npm ci && npm run build`, 배포 명령 `npx wrangler deploy` (설정은 루트 `wrangler.jsonc`, 정적 파일 폴더 `packages/site/out`).

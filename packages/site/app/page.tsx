@@ -1,5 +1,6 @@
 import { CHARS, CHAPTERS } from '@/lib/data';
 import Countdown from './Countdown';
+import Stats from './Stats';
 
 export default function Home() {
   return (
@@ -74,6 +75,7 @@ export default function Home() {
           ))}
         </ol>
         <p className="endings">엔딩은 넷. 무엇을 되찾았는지, 그리고 마지막에 무엇을 저장할지에 따라 갈린다.</p>
+        <Stats />
         </div>
       </section>
 

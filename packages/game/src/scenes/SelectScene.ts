@@ -55,13 +55,48 @@ export class SelectScene extends Phaser.Scene {
     this.abilT.setText(`${c.ability} — ${c.abilityDesc}`);
   }
 
-  private go() {
+  private diff: { box: Phaser.GameObjects.Container; idx: number; rows: Phaser.GameObjects.Text[] } | null = null;
+  private static DIFFS = [
+    { k: 'easy' as const, name: '여유롭게', desc: '시간이 절반만 흐른다. 서브 퀘스트·에피소드까지\n다 해 볼 수 있다. 처음이라면 이쪽.' },
+    { k: 'normal' as const, name: '72시간 그대로', desc: '이동·퍼즐·휴식마다 시간이 그대로 흐른다.\n무엇을 포기할지 골라야 한다.' },
+  ];
+  private openDiff() {
+    const box = this.add.container(0, 0).setDepth(10);
+    const g = this.add.graphics(); g.fillStyle(0x0b0820, 0.82).fillRect(0, 0, W, 540);
+    g.fillStyle(0x1a1438, 1).fillRect(130, 80, 700, 380).lineStyle(2, 0xf5f0ff, 1).strokeRect(130, 80, 700, 380);
+    box.add(g);
+    box.add(this.add.text(W / 2, 100, '시간은 어떻게 흐를까?', { fontFamily: FONT_B, fontSize: '24px', color: '#ffd66b' }).setOrigin(0.5, 0));
+    box.add(this.add.text(W / 2, 430, '나중에 바꿀 수 없어요 · Esc 뒤로', { fontFamily: FONT, fontSize: '14px', color: '#8d84bd' }).setOrigin(0.5, 0));
+    const rows = SelectScene.DIFFS.map((d, i) => {
+      const t = this.add.text(160, 160 + i * 140, '', { fontFamily: FONT, fontSize: '20px', color: '#f5f0ff', lineSpacing: 6, wordWrap: { width: 640, useAdvancedWrap: true } }).setInteractive({ useHandCursor: true });
+      t.on('pointerdown', () => { if (this.diff!.idx === i) this.start(); else { this.diff!.idx = i; this.paintDiff(); } });
+      box.add(t); return t;
+    });
+    this.diff = { box, idx: 0, rows }; this.paintDiff();
+  }
+  private paintDiff() {
+    if (!this.diff) return;
+    this.diff.rows.forEach((t, i) => {
+      const d = SelectScene.DIFFS[i], on = i === this.diff!.idx;
+      t.setText(`${on ? '▶ ' : '   '}${d.name}\n   ${d.desc.replace('\n', '\n   ')}`).setColor(on ? '#ffd66b' : '#c9c0ef');
+    });
+  }
+  private go() { if (!this.diff) this.openDiff(); }
+  private start() {
+    const k = SelectScene.DIFFS[this.diff!.idx].k;
     GameState.startNew(CHARS[this.idx].id);
+    GameState.data.difficulty = k;
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Prologue'));
   }
 
   update() {
+    if (this.diff) {
+      if (Input.take('up') || Input.take('down')) { this.diff.idx = 1 - this.diff.idx; this.paintDiff(); }
+      if (Input.take('menu')) { this.diff.box.destroy(); this.diff = null; return; }
+      if (Input.take('confirm')) this.start();
+      return;
+    }
     if (Input.take('left')) { this.idx = (this.idx + CHARS.length - 1) % CHARS.length; this.paint(); }
     if (Input.take('right')) { this.idx = (this.idx + 1) % CHARS.length; this.paint(); }
     if (Input.take('confirm')) this.go();

@@ -11,6 +11,8 @@ export interface SaveData {
   pos: { x: number; y: number };
   flags: Record<string, boolean | string | number>;
   hoursLeft: number;
+  /** easy = 모든 시간 비용 절반 */
+  difficulty?: 'easy' | 'normal';
   bugNotes: string[];
   brokenRocks: string[];
   inventory: Record<string, number>;

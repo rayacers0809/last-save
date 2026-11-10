@@ -225,3 +225,11 @@ footer { padding: 32px 16px 48px; text-align: center; font-family: var(--pixel);
 .wiki-items .where { color: var(--dim); font-size: 13px; margin-top: 2px; }
 .wiki-subs h3 { display: flex; align-items: center; gap: 8px; }
 .sub-icon { width: 36px; height: 36px; image-rendering: auto; }
+
+.stats { margin-top: 20px; background: var(--panel); border: 2px solid #4a3d86; padding: 14px 18px; max-width: 640px; }
+.stats-head { margin: 0 0 10px; color: var(--lav); }
+.stats-head b { color: var(--gold); font-family: var(--pixel-b); font-weight: normal; }
+.stats ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stats li { background: var(--deep); padding: 8px 10px; display: flex; flex-direction: column; font-size: 13px; color: var(--dim); }
+.stats li b { font-family: var(--pixel-b); font-weight: normal; font-size: 20px; color: var(--line); }
+@media (max-width: 600px) { .stats ul { grid-template-columns: repeat(2, 1fr); } }

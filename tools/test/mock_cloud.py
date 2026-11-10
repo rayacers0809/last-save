@@ -9,11 +9,13 @@ def install(ctx):
         if fn in ('ls_signup', 'ls_login'):
             users.setdefault(a['p_username'], a['p_password']); t = secrets.token_hex(8); sessions[t] = a['p_username']
             return await ok({'token': t, 'username': a['p_username']})
+        if fn == 'ls_stats': return await ok({'players': len(users), 'endings': {}})
         u = sessions.get(a.get('p_token'))
         if not u: return await ok({'error': '다시 로그인해 주세요.'})
         if fn == 'ls_me': return await ok({'username': u, 'hasSave': u in saves})
         if fn == 'ls_save': saves[u] = a['p_data']; return await ok({'ok': True})
         if fn == 'ls_load': return await ok({'data': saves.get(u)})
+        if fn in ('ls_end', 'ls_report'): return await ok({'ok': True})
         if fn == 'ls_clear': saves.pop(u, None); return await ok({'ok': True})
         return await ok(None)
     return ctx.route('**/rest/v1/rpc/*', handle)

@@ -1,5 +1,6 @@
 // 엔딩 4종: 초기화 · 노멀 · 트루(+크레딧) · 시크릿
 import Phaser from 'phaser';
+import { Cloud } from '../systems/Cloud';
 import { Input } from '../systems/InputManager';
 import { FONT, FONT_B, runDialogue } from './UIScene';
 import { starfield } from './TitleScene';
@@ -67,6 +68,11 @@ export class EndingScene extends Phaser.Scene {
     const tt = this.add.text(W / 2, kind === 'true' ? 470 : kind === 'secret' ? 140 : 200, title, { fontFamily: FONT_B, fontSize: '24px', color: col, backgroundColor: '#0b0820cc', padding: { x: 10, y: 4 } }).setOrigin(0.5).setAlpha(0);
     const hint = this.add.text(W / 2, kind === 'true' ? 505 : kind === 'secret' ? 180 : 250, 'SPACE / 탭으로 계속', { fontFamily: FONT, fontSize: '12px', color: '#8d84bd' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: [tt, hint], alpha: 1, duration: 800, onComplete: () => { this.ready = true; } });
+    void Cloud.stats().then(r => {
+      const n = r.endings?.[kind]; if (!n || !this.sys.isActive()) return;
+      const st = this.add.text(W / 2, hint.y + 18, `이 엔딩을 본 사람 ${n}명${r.players ? ` · 전체 ${r.players}명 중` : ''}`, { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' }).setOrigin(0.5).setAlpha(0);
+      this.tweens.add({ targets: st, alpha: 1, duration: 600 });
+    });
     this.input.on('pointerdown', () => { if (this.ready) this.go(); });
   }
 

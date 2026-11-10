@@ -1,6 +1,6 @@
 // BGM·효과음. 음원 파일 없이 WebAudio로 칩튠을 직접 합성한다. (P6에서 실제 음원으로 교체 가능)
 type Track = 'title' | 'village' | 'night';
-type Sfx = 'blip' | 'get' | 'quest' | 'cloud' | 'dash' | 'switch' | 'glitch' | 'menu' | 'star' | 'save';
+type Sfx = 'blip' | 'get' | 'quest' | 'cloud' | 'dash' | 'switch' | 'glitch' | 'menu' | 'star' | 'save' | 'warp' | 'arrive';
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 const MUTE_KEY = 'last-save:muted';
@@ -104,14 +104,24 @@ class AudioImpl {
     this.wanted = key;
     const ALIAS: Record<string, string> = { title: 'studio', cloud: 'village' };
     const url = key ? (fileFor(key) ?? (ALIAS[key] ? fileFor(ALIAS[key]) : undefined)) : undefined;
-    if (this.el) { this.el.pause(); this.el = undefined; }
+    if (this.el) { const old = this.el; this.el = undefined; this.fade(old, 0, 500, () => old.pause()); }
     if (url) {
       this.stopSynth();
-      const el = new window.Audio(url); el.loop = true; el.volume = this.muted ? 0 : 0.45; this.el = el;
+      const el = new window.Audio(url); el.loop = true; el.volume = 0; this.el = el;
+      if (!this.muted) this.fade(el, 0.45, 900);
       el.play().catch(() => { const go = () => { if (this.el === el) el.play().catch(() => {}); }; window.addEventListener('pointerdown', go, { once: true }); window.addEventListener('keydown', go, { once: true }); });
       return;
     }
     this.synth(key ? (FALLBACK[key] ?? 'village') : null);
+  }
+  /** 음원 볼륨을 천천히 바꾼다 (지역 전환 크로스페이드) */
+  private fade(el: HTMLAudioElement, to: number, ms: number, done?: () => void) {
+    const from = el.volume, t0 = performance.now();
+    const id = window.setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      try { el.volume = Math.max(0, Math.min(1, from + (to - from) * k)); } catch { /* 무시 */ }
+      if (k >= 1) { clearInterval(id); done?.(); }
+    }, 40);
   }
   private stopSynth() { this.track = null; if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
   private synth(name: Track | null) {
@@ -156,6 +166,8 @@ class AudioImpl {
       case 'switch': this.tone(mtof(79), t, 0.08, 'triangle', 0.15); this.tone(mtof(86), t + 0.06, 0.12, 'triangle', 0.15); break;
       case 'glitch': this.hiss(t, 0.3, 0.25, 800); for (let i = 0; i < 5; i++) this.tone(100 + Math.random() * 900, t + i * 0.04, 0.05, 'square', 0.06); break;
       case 'star': [79, 84, 88, 91, 96].forEach((n, i) => this.tone(mtof(n), t + i * 0.09, 0.6, 'triangle', 0.15)); break;
+      case 'warp': this.tone(220, t, 0.55, 'sine', 0.14, undefined, 1400); this.hiss(t, 0.5, 0.06, 2500); [84, 88, 91].forEach((n, i) => this.tone(mtof(n), t + 0.12 + i * 0.07, 0.3, 'triangle', 0.06)); break;
+      case 'arrive': [76, 83, 88].forEach((n, i) => this.tone(mtof(n), t + i * 0.12, 0.7, 'sine', 0.1)); break;
       case 'save': this.tone(mtof(88), t, 0.15, 'sine', 0.15); this.tone(mtof(95), t + 0.12, 0.4, 'sine', 0.15); break;
     }
   }

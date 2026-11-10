@@ -16,10 +16,13 @@ import { SaveManager } from '../systems/SaveManager';
 import { runDialogue, toast, UIState, FONT } from './UIScene';
 import { glitchBurst } from './PrologueScene';
 import { isTouchDevice } from '../ui/TouchPad';
+import { showReport } from '../ui/ReportPanel';
+import { Cloud } from '../systems/Cloud';
 import { SCRIPTS, EPISODES, episodeOpen, SHOP, type Episode } from '../world/content';
 import type { Ctx, Thing, Anchor, RegionScript } from '../world/script';
 import { Layout, type Pt } from '../world/layout';
 import { makeThingTextures } from '../gfx/things';
+import { ambient } from '../gfx/ambient';
 import { runPuzzle, type PuzzleCfg } from './PuzzleScene';
 import { FOLK_KIND, folkTexture } from '../data/folks';
 import { regionName, countNotes, NOTE_TOTAL } from '../data/quests';
@@ -174,8 +177,14 @@ export class WorldScene extends Phaser.Scene {
 
     const lead = this.actors.get(d.leader)!;
     this.cameras.main.setBounds(Math.min(0, (this.cols * TILE - 960) / 2), Math.min(0, (this.rows * TILE - 540) / 2), Math.max(960, this.cols * TILE), Math.max(540, this.rows * TILE)).startFollow(lead.spr, true, 0.12, 0.12).setRoundPixels(true);
-    this.cameras.main.fadeIn(500, 255, 255, 255);
+    if (data.from === 'travel' || data.from === 'load') {
+      Bus.emit('wipe', 'in');
+      const m = MAP_ORDER.find(x => x.id === this.mapId);
+      const kicker = m ? (m.act === 0 ? '프롤로그' : m.act === 5 ? '시크릿' : `${m.act}막`) : '';
+      this.time.delayedCall(350, () => { Bus.emit('title-card', this.preview ? `${kicker} · 둘러보기` : kicker, m?.name ?? ''); Audio.sfx('arrive'); });
+    } else this.cameras.main.fadeIn(500, 255, 255, 255);
 
+    if (!this.preview || this.mapId !== 'studio') ambient(this, this.mapId);
     Bus.emit('hud', true);
     const onTag = (t: string) => this.onTag(t);
     const onSpent = (h: number, why: string) => toast(`⏳ ${why} · ${h}시간 흘렀다`);
@@ -186,7 +195,6 @@ export class WorldScene extends Phaser.Scene {
 
     if (data.from === 'new') this.time.delayedCall(700, () => runDialogue('arrive'));
     else if (data.from === 'travel') this.time.delayedCall(400, () => {
-      toast(`${this.region?.name ?? '구름 위의 마을'}${this.preview ? ' · 둘러보기 모드' : ''}`);
       const arrive = this.script?.arrive;
       const secret = this.mapId === 'trash' && GameState.flag('secret.mode');
       if (arrive && !this.preview && (secret || !GameState.flag(`arrive.${this.mapId}`))) {
@@ -194,7 +202,7 @@ export class WorldScene extends Phaser.Scene {
         this.time.delayedCall(500, () => this.runAct(arrive));
       }
     });
-    else this.time.delayedCall(400, () => toast('이어서 시작해요.'));
+    else this.time.delayedCall(2600, () => toast('이어서 시작해요.'));
   }
 
   /** 시계탑(그림 속 성)을 덮는 검은 픽셀 가림막 */
@@ -573,8 +581,9 @@ export class WorldScene extends Phaser.Scene {
     this.lock = true;
     if (!this.preview) GameState.spend(GameState.flag(`visit.${id}`) ? 1 : 2, '이동');
     d.pos = { x: 0, y: 0 };
-    this.cameras.main.fadeOut(400, 255, 255, 255);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ from: 'travel', map: id }));
+    Audio.sfx('warp');
+    this.cameras.main.zoomTo(1.12, 520, 'Sine.in');
+    Bus.emit('wipe', 'out', () => this.scene.restart({ from: 'travel', map: id }));
   }
   private async talkRegionFolk(id: string) {
     const talk = this.script?.talk?.[id];
@@ -617,6 +626,7 @@ export class WorldScene extends Phaser.Scene {
   private openMainMenu() {
     Bus.emit('menu', '일시정지', [
       { label: '계속하기', act: () => {} },
+      { label: '힌트 — 다음에 뭘 하지?', act: () => this.showHint() },
       { label: '퀘스트 (J)', act: () => this.showQuests() },
       { label: '가방 (I)', act: () => this.showBag() },
       { label: '동료 · 유대', act: () => this.showParty() },
@@ -624,8 +634,44 @@ export class WorldScene extends Phaser.Scene {
       { label: '지도 (M)', act: () => this.showMap(false) },
       { label: Audio.muted ? '소리 켜기' : '소리 끄기', act: () => { Audio.setMuted(!Audio.muted); toast(Audio.muted ? '소리를 껐어요.' : '소리를 켰어요.'); } },
       { label: '저장은 포인트(★)에게', act: () => toast('광장의 별, 포인트에게 말을 걸면 저장할 수 있어.') },
+      { label: '버그 제보', act: () => this.report() },
       { label: '타이틀로', act: () => this.scene.start('Title') },
     ]);
+  }
+  private async report() {
+    const lead = this.actors.get(GameState.data.leader)!;
+    const tx = Math.floor(lead.x / TILE), ty = Math.floor(lead.y / TILE), d = GameState.data;
+    this.lock = true; UIState.busy = true;
+    const sent = await showReport(`${regionName(this.mapId)} (${tx}, ${ty})`, this.mapId, tx, ty,
+      { leader: d.leader, hours: d.hoursLeft, difficulty: d.difficulty ?? 'normal', ua: navigator.userAgent.slice(0, 160), flags: Object.keys(d.flags).filter(k => k.startsWith('mq')).slice(0, 40) });
+    this.lock = false; UIState.busy = false;
+    if (sent) toast('제보를 보냈어요. 고마워요!');
+  }
+  /** 지금 할 일을 짧게 알려 준다 (메인 퀘스트 기준) */
+  private showHint() {
+    const d = GameState.data, q = questLog();
+    const MQ_MAP: Record<string, string[]> = { cloud: ['MQ01', 'MQ02'], mirror: ['MQ03'], park: ['MQ04'], data: ['MQ05'], garden: ['MQ06'], station: ['MQ07'], photo: ['MQ08'], shadow: ['MQ09'], lastsave: ['MQ10'] };
+    const here = q.find(x => !x.done && (MQ_MAP[this.mapId] ?? []).includes(x.id));
+    const other = q.find(x => !x.done && x.kind === '메인');
+    const lines: string[] = [];
+    const main = here ?? other;
+    if (main) {
+      lines.push(`[${main.title}]`, main.desc);
+      if (!here && other) lines.push(`(이 퀘스트는 ${regionName(Object.keys(MQ_MAP).find(k => MQ_MAP[k].includes(other.id)) ?? '')}에 있어. 하늘 정류장으로 가자.)`);
+      const need = CHAR_IDS.filter(id => main.desc.includes(charById(id).name));
+      if (need.length && !need.includes(d.leader)) lines.push(`→ 지금 리더는 ${charById(d.leader).name}. 숫자키(모바일은 아래 얼굴)로 ${need.map(id => `${charById(id).name}(${CHAR_IDS.indexOf(id) + 1})`).join(' · ')}(으)로 바꾸자.`);
+      if (main.desc.includes('빅윈') && GameState.bwCharges() <= 0) lines.push('→ 빅윈 권한이 0이야. 포인트(★)에서 휴식하거나 별사탕을 쓰자.');
+      if (main.desc.includes('측량')) lines.push('→ 다래로 Q를 누른 뒤 M으로 지도를 열면 숨은 것이 보인다.');
+    } else {
+      const open = MAP_ORDER.filter(m => m.id !== 'studio' && !GameState.flag(MQ_OF[m.id] ?? '-'));
+      lines.push(open.length ? `이 지역의 별은 켰어. 하늘 정류장에서 아직 별이 꺼진 곳으로 가 보자: ${open.slice(0, 3).map(m => m.name).join(', ')}` : '모든 별을 켰다!');
+    }
+    const eps = EPISODES.filter(episodeOpen).map(e => `${charById(e.id).name}(${regionName(e.map)})`);
+    if (eps.length) lines.push(`♥ 열린 개인 에피소드: ${eps.join(', ')}`);
+    const subs = q.filter(x => !x.done && x.kind === '서브' && x.id !== 'EP').length;
+    if (subs) lines.push(`진행 중인 서브 퀘스트 ${subs}개 — J에서 확인.`);
+    lines.push(`남은 시간 ${Math.floor(d.hoursLeft)}시간${d.difficulty === 'easy' ? ' (여유 모드: 시간이 절반만 흐름)' : ''}`);
+    Bus.emit('menu', '힌트', [{ label: '퀘스트 보기', act: () => this.showQuests() }, { label: '닫기', act: () => {} }], lines.join('\n'));
   }
   private showQuests(done = false) {
     const q = questLog();
@@ -635,6 +681,7 @@ export class WorldScene extends Phaser.Scene {
       : act.map(x => `▸ [${x.kind}] ${x.title}\n   ${x.desc}`).join('\n') || '진행 중인 퀘스트가 없다. 하늘 정류장에서 다음 지역으로 가 보자.';
     Bus.emit('menu', done ? `완료한 퀘스트 ${fin.length}개` : `진행 중인 퀘스트 ${act.length}개`, [
       { label: done ? '진행 중 보기' : `완료한 것 보기 (${fin.length})`, act: () => this.showQuests(!done) },
+      { label: '힌트', act: () => this.showHint() },
       { label: '닫기', act: () => {} },
     ], body);
   }
@@ -1217,6 +1264,7 @@ export class WorldScene extends Phaser.Scene {
     const secret = kind === 'true' && countNotes(GameState.data.bugNotes) >= NOTE_TOTAL;
     this.cameras.main.fadeOut(1200, kind === 'reset' ? 0 : 255, kind === 'reset' ? 0 : 255, kind === 'reset' ? 0 : 255);
     this.cameras.main.once('camerafadeoutcomplete', async () => {
+      if (!GameState.flag('preview')) { void Cloud.ending(kind, GameState.data.difficulty ?? 'normal', GameState.data.hoursLeft); }
       try { localStorage.setItem(`last-save:end-${kind}`, '1'); if (kind === 'reset') localStorage.setItem('last-save:loop', '1'); } catch { /* 저장소 없음 */ }
       if (secret) { GameState.setFlag('secret.mode'); GameState.setFlag('arrive.trash', false); }
       else await SaveManager.clear();

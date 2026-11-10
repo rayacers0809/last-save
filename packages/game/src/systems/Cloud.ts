@@ -2,7 +2,7 @@
 import { SUPABASE_URL, SUPABASE_KEY } from '../config';
 
 const TOKEN = 'last-save:token', USER = 'last-save:user';
-type Res = { error?: string; token?: string; username?: string; hasSave?: boolean; data?: unknown; ok?: boolean };
+type Res = { error?: string; token?: string; username?: string; hasSave?: boolean; data?: unknown; ok?: boolean; players?: number; endings?: Record<string, number> };
 
 const ls = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -50,6 +50,15 @@ class CloudImpl {
 
   async save(data: unknown, slot = 1) { if (!this.token) return { error: '로그인이 필요해요.' }; const r = await rpc('ls_save', { p_token: this.token, p_slot: slot, p_data: data }); if (r.ok) this.hasSave = true; return r; }
   async load(slot = 1) { if (!this.token) return { error: '로그인이 필요해요.' }; return rpc('ls_load', { p_token: this.token, p_slot: slot }); }
+  /** 엔딩 달성 기록 (계정당 엔딩별 한 번) */
+  async ending(kind: string, difficulty: string, hours: number) { if (!this.token) return; await rpc('ls_end', { p_token: this.token, p_kind: kind, p_difficulty: difficulty, p_hours: hours }); }
+  /** 공개 통계: 가입 인원, 엔딩별 달성 인원 */
+  async stats() { return rpc('ls_stats', {}); }
+  /** 버그 제보 */
+  async report(map: string, x: number, y: number, body: string, meta: Record<string, unknown>) {
+    if (!this.token) return { error: '로그인이 필요해요.' };
+    return rpc('ls_report', { p_token: this.token, p_map: map, p_x: x, p_y: y, p_body: body, p_meta: meta });
+  }
   async clear(slot = 1) { if (!this.token) return; await rpc('ls_clear', { p_token: this.token, p_slot: slot }); this.hasSave = false; }
 }
 
