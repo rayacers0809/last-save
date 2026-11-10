@@ -21,7 +21,11 @@ async def main():
         await ev("window.__SPEED=2.2")
         bad=[]
         for m in MAPS:
-            await ev(f"__T.travel('{m}')"); await pg.wait_for_timeout(4500); await ev("__T.drain(15000)")
+            await ev(f"__T.travel('{m}')"); await pg.wait_for_timeout(2500)
+            for _ in range(40):
+                if await ev("(()=>{const w=__T.W(); return !!(w.sys.isActive() && w.live && w.things && w.mapId==='%s')})()" % m): break
+                await pg.wait_for_timeout(300)
+            await pg.wait_for_timeout(1500); await ev("__T.drain(15000)")
             targets=await ev("""(()=>{const w=__T.W(),T=24,out=[];
               for(const t of w.things){ if(t.def.at.gated) continue; out.push(['thing:'+t.def.id,t.tile.x,t.tile.y]); }
               for(const f of w.folks) out.push(['npc:'+f.id,Math.floor(f.x/T),Math.floor((f.y-4)/T)]);

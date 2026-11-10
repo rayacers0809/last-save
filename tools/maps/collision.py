@@ -30,6 +30,9 @@ def apply(m, orig_grid=None):
     for x0, y0, x1, y1 in fx.get('open', []):
         sl = g[max(0, y0):min(rows, y1), max(0, x0):min(cols, x1)]; sl[~np.isin(sl, list(SPECIAL))] = '.'
     for x0, y0, x1, y1 in fx.get('block', []):
+        # 가로등·기둥·깃발처럼 폭 2~4칸에 키 큰 소품은 위쪽이 뒤 배경에 겹쳐 그려질 뿐이라 밑동 2칸만 막는다
+        # (1칸 폭 세로 난간·넓은 벽·물길은 그대로)
+        if 2 <= x1 - x0 <= 4 and y1 - y0 >= 4 and (x0, y0, x1, y1) not in fx.get('full', []): y0 = y1 - 2
         sl = g[max(0, y0):min(rows, y1), max(0, x0):min(cols, x1)]; sl[~np.isin(sl, list(SPECIAL))] = base
     # 세로로 긴 소품 밑동
     if fx.get('auto_props', False):
