@@ -27,7 +27,7 @@ import { cloudPos, CLOUD_FG } from '../world/cloudVillage';
 
 interface ThingInst { def: Thing; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number; key: string; tile: Pt }
 /** 필드 오브젝트 텍스처 → 아이템 그림 */
-const THING_ITEM: Record<string, string> = { shard: 'shard', balloon: 'balloon', file: 'file', lost: 'lost', frame: 'mat', kitten: 'kitten', record: 'record' };
+const THING_ITEM: Record<string, string> = { page: 'page', shard: 'shard', balloon: 'balloon', file: 'file', lost: 'lost', frame: 'mat', kitten: 'kitten', record: 'record' };
 const MQ_OF: Record<string, string> = { cloud: 'mq.cloud', mirror: 'mq.mirror', park: 'mq.park', data: 'mq.datacenter', garden: 'mq.garden', station: 'mq.station', photo: 'mq.photo', shadow: 'mq.shadow', lastsave: 'mq.final' };
 const WORLD_MQ = ['mq.mirror', 'mq.park', 'mq.datacenter', 'mq.garden', 'mq.station', 'mq.photo', 'mq.shadow'];
 
