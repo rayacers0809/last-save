@@ -90,7 +90,7 @@ export default function Home() {
             <tr><td>퀘스트 · 가방 · 지도</td><td><kbd>J</kbd> <kbd>I</kbd> <kbd>M</kbd></td><td>≡ 메뉴</td></tr>
           </tbody>
         </table>
-        <p className="note">저장은 이 브라우저에 된다. 지도의 노란 별, 포인트에게 말을 걸면 저장할 수 있다.</p>
+        <p className="note">아이디·비밀번호로 가입하면 바로 시작한다. 포인트(노란 별)에게 말을 걸어 저장하면 계정에 남아서 다른 기기에서도 이어 할 수 있다.</p>
         <a href="/play/" className="menu-item primary big">새로 시작</a>
         </div>
       </section>

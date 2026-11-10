@@ -81,7 +81,7 @@ npm run build:single   # dist-single/index.html 한 파일 빌드
 | 퀘스트 창 문구 · 아이템 이름 | `src/data/quests.ts` |
 | 캐릭터 이름 · 색 · 능력 이름 | `src/data/characters.ts` |
 | NPC 이름 · 그림 | `src/world/maps.ts`(이름·대사), `src/assets/npc/<id>.png`(필드 그림), `<id>_por_smile/surprise/sad.png`(표정) |
-| 맵 충돌 · 위치 | `tools/maps/config.py` → `python3 tools/maps/build.py` → `python3 tools/maps/occlusion.py` (가로등·거울 같은 소품 뒤로 캐릭터가 가려지는 조각 다시 만들기) |
+| 맵 충돌 · 위치 | `tools/maps/config.py` → `python3 tools/maps/build.py` → `python3 tools/maps/collision.py` (사물·길 구분: `collision_fix.py`에 맵별로 막을 칸 `block` · 열 칸 `open` 사각형, 타일 좌표) → `python3 tools/maps/occlusion.py` (가로등·거울 같은 소품 뒤로 캐릭터가 가려지는 조각) → `python3 tools/maps/check.py` (도달성) |
 | 막힌 길 검사 | 빌드 후 `dist`를 8766 포트로 띄우고 `python3 tools/test/walk_all.py cloud,mirror,...` (모든 오브젝트·NPC까지 실제로 걸어 봄) |
 | 키 배치 | `src/systems/InputManager.ts` |
 | 저장 구조 | `src/systems/SaveManager.ts` (IndexedDB, 내보내기/가져오기 함수 포함) |
