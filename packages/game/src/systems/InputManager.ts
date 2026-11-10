@@ -22,6 +22,9 @@ class InputManagerImpl {
 
   constructor() {
     window.addEventListener('keydown', e => {
+      // 로그인 입력칸에 글자를 칠 때는 게임 입력으로 받지 않는다
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
       const a = KEYMAP[e.code];
       if (!a) return;
       if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();

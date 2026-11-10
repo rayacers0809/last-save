@@ -673,7 +673,7 @@ export class WorldScene extends Phaser.Scene {
     if (t === 'save' && this.preview) { toast('둘러보기 모드에서는 저장하지 않아요.'); return; }
     if (t === 'save') {
       this.storePos();
-      GameState.save().then(ok => { if (ok) Audio.sfx('save'); toast(ok ? '저장했어요. (이 기기 브라우저)' : '저장에 실패했어요. 브라우저 저장소 설정을 확인해 주세요.'); });
+      GameState.save().then(r => { if (r) Audio.sfx('save'); toast(r === 'cloud' ? '저장했어요. 다시 로그인해도 이어할 수 있어요.' : r === 'local' ? '서버에 닿지 않아 이 기기에만 저장했어요. 연결되면 다시 저장해 주세요.' : '저장에 실패했어요.'); });
     }
   }
   private actClear() {

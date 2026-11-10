@@ -61,3 +61,19 @@ body.touch #touch { display: block; position: absolute; inset: 0; pointer-events
 @media (orientation: portrait) {
   body.touch .tp-party { position: absolute; top: 72px; bottom: auto; left: 16px; transform: none; max-width: calc(100% - 32px); flex-wrap: wrap; }
 }
+
+/* 로그인 · 회원가입 */
+.auth { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; overflow-y: auto; padding: 12px 16px; background: rgba(11, 8, 32, .72); font-family: Galmuri11, 'Apple SD Gothic Neo', sans-serif; }
+.auth-box { width: min(420px, 100%); background: #1a1438; border: 2px solid #f5f0ff; color: #f5f0ff; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; margin: auto 0; box-shadow: 6px 6px 0 #ff5fa2; }
+.auth-tabs { display: flex; gap: 4px; }
+.auth-tabs button { flex: 1; font: inherit; font-size: 16px; padding: 8px; background: #241b4a; color: #8d84bd; border: 2px solid #4a3d86; cursor: pointer; }
+.auth-tabs button[aria-selected="true"] { color: #ffd66b; border-color: #ffd66b; }
+.auth-lead, .auth-hint { margin: 0; font-size: 12px; line-height: 1.7; color: #c9c0ef; }
+.auth label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #c9c0ef; }
+.auth label[hidden], .auth p[hidden] { display: none; }
+.auth input { font: inherit; font-size: 16px; padding: 8px 12px; background: #0f0a26; color: #f5f0ff; border: 2px solid #6a5cc0; border-radius: 0; }
+.auth input:focus { outline: none; border-color: #ffd66b; }
+.auth-err { margin: 0; min-height: 1.4em; font-size: 13px; color: #ff8aa0; }
+.auth-go { font: inherit; font-size: 18px; padding: 10px; background: #ffd66b; color: #1a1438; border: 0; cursor: pointer; }
+.auth-go:disabled { opacity: .6; cursor: wait; }
+.auth button:focus-visible { outline: 3px solid #7cf0c8; outline-offset: 2px; }

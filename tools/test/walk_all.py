@@ -3,6 +3,7 @@
 #       python3 tools/test/walk_all.py cloud,mirror,park,data,garden,station,photo,shadow,lastsave,trash
 import asyncio, json, sys
 from playwright.async_api import async_playwright
+import mock_cloud
 import os
 D = os.path.dirname(os.path.abspath(__file__))
 H = open(f'{D}/harness.js').read() + ';0'; B = open(f'{D}/bot.js').read() + ';0'
@@ -10,10 +11,10 @@ MAPS=sys.argv[1].split(',')
 async def main():
     async with async_playwright() as p:
         b=await p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox','--use-gl=swiftshader','--enable-unsafe-swiftshader'])
-        pg=await b.new_page(viewport={'width':960,'height':540}); errs=[]
+        ctx=await b.new_context(viewport={'width':960,'height':540}); await mock_cloud.install(ctx); pg=await ctx.new_page(); errs=[]
         pg.on('pageerror', lambda e: errs.append(str(e)))
         ev=pg.evaluate
-        await pg.goto('http://localhost:8766/index.html?debug'); await pg.wait_for_timeout(2500); await ev(H); await ev(B)
+        await pg.goto('http://localhost:8766/index.html?debug'); await pg.wait_for_timeout(2500); await mock_cloud.login(pg); await ev(H); await ev(B)
         await pg.keyboard.press('Space'); await pg.wait_for_timeout(600); await pg.keyboard.press('Space'); await pg.wait_for_timeout(1500)
         await ev("__T.drain(20000)"); await pg.wait_for_timeout(2500); await ev("__T.drain(10000)")
         await ev("""(()=>{const d=__GS.data;d.party=['rumung','dodamhi','dotcha','ttuning','bigwin','haming','darae','eune','shiro'];d.flags.preview=true;Object.assign(d.flags,{'mq.gather':true,'mq.cloud':true});__T.travel('cloud');})()"""); await pg.wait_for_timeout(3500)

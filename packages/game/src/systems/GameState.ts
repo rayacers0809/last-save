@@ -25,7 +25,7 @@ class GameStateImpl {
     Story1.setPlayer(d.firstPlayer, charById(d.firstPlayer).name);
   }
 
-  async save(): Promise<boolean> {
+  async save(): Promise<import('./SaveManager').SaveResult> {
     this.data.inkState = Story1.saveState();
     return SaveManager.save(this.data);
   }

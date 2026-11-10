@@ -8,6 +8,8 @@ import { isTouchDevice } from '../ui/TouchPad';
 import { Audio } from '../systems/AudioManager';
 import { Bus } from '../systems/GameState';
 import { MAP_ORDER } from '../world/maps';
+import { Cloud } from '../systems/Cloud';
+import { showAuth } from '../ui/AuthPanel';
 
 const W = 960, H = 540;
 
@@ -50,7 +52,14 @@ export class TitleScene extends Phaser.Scene {
     this.add.text(W / 2, 140, '마지막 저장점', { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' }).setOrigin(0.5);
     this.add.text(W / 2, 520, isTouchDevice() ? 'A 버튼으로 결정 · ⚙ 설정' : 'WASD 이동 · SPACE 결정 · Q 능력 · M 지도 · F 전체화면', { fontFamily: FONT, fontSize: '12px', color: '#8d84bd' }).setOrigin(0.5);
 
+    this.texts = [];
+    // 게임을 시작하려면 반드시 로그인
+    const status = this.add.text(W / 2, 176, '', { fontFamily: FONT, fontSize: '12px', color: '#c9c0ef' }).setOrigin(0.5);
+    if (!(Cloud.loggedIn && (await Cloud.check() || Cloud.loggedIn))) { status.setText('로그인이 필요해요'); await showAuth(); }
+    if (!this.sys.isActive()) return;
+    status.setText(`${Cloud.username} 님으로 접속 중`);
     const save = await SaveManager.load();
+    if (!this.sys.isActive()) return;
     this.opts = [{ label: '새로 시작', act: () => this.scene.start('Select') }];
     const browse = { label: '맵 둘러보기', act: () => Bus.emit('menu', '맵 둘러보기', [
       ...MAP_ORDER.map(m => ({ label: `${m.act === 5 ? '시크릿' : m.act === 0 ? '프롤로그' : m.act + '막'} · ${m.name}`, act: () => { GameState.startPreview(); this.scene.start('World', { from: 'travel', map: m.id }); } })),
@@ -58,8 +67,9 @@ export class TitleScene extends Phaser.Scene {
     ], '9명 모두 데리고 자유롭게 걸어 볼 수 있어요. 시간이 흐르지 않고 저장되지 않아요.') };
     if (save) this.opts.push({ label: '이어하기', act: () => { GameState.loadFrom(save); this.scene.start('World', { from: 'load' }); } });
     this.opts.push(browse);
+    this.opts.push({ label: '로그아웃', act: async () => { await Cloud.logout(); this.scene.restart(); } });
     this.texts = this.opts.map((o, i) => {
-      const t = this.add.text(W / 2, 196 + i * 40, o.label, { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' })
+      const t = this.add.text(W / 2, 206 + i * 38, o.label, { fontFamily: FONT, fontSize: '24px', color: '#f5f0ff' })
         .setOrigin(0.5).setInteractive({ useHandCursor: true });
       t.on('pointerover', () => { this.idx = i; this.paint(); });
       t.on('pointerdown', () => { this.idx = i; o.act(); });
