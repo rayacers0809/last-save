@@ -19,6 +19,7 @@ export default function Home() {
             <a href="/play/" className="menu-item primary">새로 시작</a>
             <a href="#slots" className="menu-item">아홉 명 만나기</a>
             <a href="#world" className="menu-item">세이브리아 둘러보기</a>
+            <a href="/wiki/" className="menu-item">공략 위키</a>
           </nav>
         </div>
         <ul className="lineup" aria-label="아홉 명의 별지기">
@@ -92,10 +93,11 @@ export default function Home() {
         </table>
         <p className="note">아이디·비밀번호로 가입하면 바로 시작한다. 포인트(노란 별)에게 말을 걸어 저장하면 계정에 남아서 다른 기기에서도 이어 할 수 있다.</p>
         <a href="/play/" className="menu-item primary big">새로 시작</a>
+        <p className="note">처음이라 막막하면 <a href="/wiki/">공략 위키</a>부터.</p>
         </div>
       </section>
 
-      <footer><p>LAST SAVE : 마지막 저장점</p></footer>
+      <footer><p>LAST SAVE : 마지막 저장점 · <a href="/wiki/">공략 위키</a></p></footer>
     </main>
   );
 }

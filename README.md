@@ -94,7 +94,7 @@ npm run build:single   # dist-single/index.html 한 파일 빌드
 
 ## 사이트 (packages/site)
 
-Next.js 정적 사이트: 타이틀 화면 랜딩, 세이브 슬롯(캐릭터 소개), 세이브리아(막·지역), 조작, `/play/`(게임).
+Next.js 정적 사이트: 타이틀 화면 랜딩, 세이브 슬롯(캐릭터 소개), 세이브리아(막·지역), 조작, `/play/`(게임), `/wiki/`(공략 위키 — 내용은 `lib/wiki.ts`, 게임 퍼즐 정답을 바꾸면 여기도 같이 고치기).
 
 ```bash
 cd packages/game && npm install && npm run build   # 게임 먼저
