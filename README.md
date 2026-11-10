@@ -101,4 +101,4 @@ cd packages/game && npm install && npm run build   # 게임 먼저
 cd ../site && npm install && npm run build         # out/ 폴더가 완성된 사이트
 ```
 
-Cloudflare Pages: 빌드 명령 `cd packages/game && npm ci && npm run build && cd ../site && npm ci && npm run build`, 출력 폴더 `packages/site/out`.
+Cloudflare Workers(Git 연결): 빌드 명령 `cd packages/game && npm ci && npm run build && cd ../site && npm ci && npm run build`, 배포 명령 `npx wrangler deploy` (설정은 루트 `wrangler.jsonc`, 정적 파일 폴더 `packages/site/out`).

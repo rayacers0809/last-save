@@ -1,0 +1,10 @@
+// Cloudflare Workers 정적 사이트 배포 설정 (Workers Builds: 빌드 후 npx wrangler deploy)
+{
+  "name": "last-save",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "./packages/site/out",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
