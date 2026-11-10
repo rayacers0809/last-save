@@ -102,3 +102,8 @@
 | trash | 휴지통 섬 — 토이 피아노 자장가 | Claude (코드 합성) |
 
 Claude가 만든 곡의 합성 코드는 `tools/music/`. 다른 곡으로 바꾸려면 같은 키 이름으로 파일만 덮어쓰면 된다.
+
+## 아이템 그림 (`packages/game/src/assets/items/<키>.png`)
+
+- 64×64 투명 PNG, 사용자 제공 시트(5×4)에서 잘라 냄. 파일 이름 = 아이템 키 (`data/quests.ts` ITEM_NAMES)
+- 게임: 가방 아이콘 칸, 상점·가방 메뉴 아이콘, 필드 수집 물건 (`WorldScene` THING_ITEM). 사이트: 위키 아이템 도감 (빌드 때 `public/items/`로 복사)

@@ -20,7 +20,9 @@ export function runDialogue(knot: string): Promise<string[]> {
 }
 export function toast(text: string) { Bus.emit('toast', text); }
 
-interface MenuOpt { label: string; act: () => void }
+interface MenuOpt { label: string; act: () => void; icon?: string }
+/** 메뉴 위에 깔리는 아이콘 칸 (가방) */
+export interface GridCell { icon: string; name: string; count?: number; desc?: string; on?: boolean }
 
 export class UIScene extends Phaser.Scene {
   private box!: Phaser.GameObjects.Container;
@@ -91,7 +93,7 @@ export class UIScene extends Phaser.Scene {
       this.menuBox.setVisible(false).removeAll(true); UIState.busy = false;
       const d = this.done; this.done = null; d?.(this.tags);
     });
-    Bus.on('menu', (title: string, opts: MenuOpt[], body?: string) => this.openMenu(title, opts, body));
+    Bus.on('menu', (title: string, opts: MenuOpt[], body?: string, grid?: GridCell[]) => this.openMenu(title, opts, body, grid));
 
     this.input.on('pointerdown', () => { if (this.active && !this.choosing) this.tapQueued = true; });
   }
@@ -216,39 +218,73 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- 메뉴 ----------
-  private openMenu(title: string, opts: MenuOpt[], body?: string) {
+  private grid: GridCell[] = [];
+  private gridIdx = 0;
+  private gridFrames: Phaser.GameObjects.Rectangle[] = [];
+  private gridCap?: Phaser.GameObjects.Text;
+  private openMenu(title: string, opts: MenuOpt[], body?: string, grid?: GridCell[]) {
     UIState.busy = true; this.menuOpts = opts; this.menuIdx = 0; this.menuBox.removeAll(true); this.menuTexts = [];
+    this.grid = grid ?? []; this.gridIdx = 0; this.gridFrames = []; this.gridCap = undefined;
     Audio.sfx('menu');
-    const w = body ? 640 : 460;
-    const bodyT = body ? this.add.text(W / 2, 0, body, { fontFamily: FONT, fontSize: '24px', color: '#e6e0ff', lineSpacing: 6, wordWrap: { width: w - 64, useAdvancedWrap: true } }).setOrigin(0.5, 0) : null;
-    const bodyH = bodyT ? Math.min(300, bodyT.height) + 20 : 0;
-    const cols = opts.length > 7 ? 2 : 1, perCol = Math.ceil(opts.length / cols);
+    const w = body || this.grid.length ? 640 : 460;
+    const gCols = 8, cell = 72, gRows = Math.ceil(this.grid.length / gCols);
+    const gridH = this.grid.length ? gRows * cell + 52 : 0;
+    const bodyT = body ? this.add.text(W / 2, 0, body, { fontFamily: FONT, fontSize: this.grid.length ? '16px' : '24px', color: '#e6e0ff', lineSpacing: 6, wordWrap: { width: w - 64, useAdvancedWrap: true } }).setOrigin(0.5, 0) : null;
+    const bodyH = bodyT ? Math.min(300 - gridH / 2, bodyT.height) + 20 : 0;
+    const cols = opts.length > 7 || (this.grid.length && opts.length > 2) ? 2 : 1, rowH = this.grid.length ? 38 : 44, perCol = Math.ceil(opts.length / cols);
     const w2 = cols === 2 ? Math.max(w, 720) : w;
-    const h = 80 + bodyH + perCol * 44, x = (W - w2) / 2, y = Math.max(12, (H - h) / 2);
+    const h = 80 + gridH + bodyH + perCol * rowH, x = (W - w2) / 2, y = Math.max(12, (H - h) / 2);
     const g = this.add.graphics();
     g.fillStyle(0x0b0820, 0.6).fillRect(0, 0, W, H);
     g.fillStyle(0x1a1438, 1).fillRect(x, y, w2, h).lineStyle(2, 0xf5f0ff, 1).strokeRect(x, y, w2, h);
     this.menuBox.add(g);
     this.menuBox.add(this.add.text(W / 2, y + 22, title, { fontFamily: FONT_B, fontSize: '24px', color: '#ffd66b' }).setOrigin(0.5, 0));
+    if (this.grid.length) {
+      const gx = W / 2 - (Math.min(gCols, this.grid.length) * cell) / 2;
+      this.grid.forEach((c, i) => {
+        const cx = gx + (i % gCols) * cell + cell / 2, cy = y + 64 + Math.floor(i / gCols) * cell + cell / 2;
+        const fr = this.add.rectangle(cx, cy, cell - 8, cell - 8, 0x0f0a26).setStrokeStyle(2, c.on ? 0x7cf0c8 : 0x4a3d86).setInteractive({ useHandCursor: true });
+        fr.on('pointerover', () => { this.gridIdx = i; this.paintGrid(); });
+        this.gridFrames.push(fr); this.menuBox.add(fr);
+        if (this.textures.exists(c.icon)) this.menuBox.add(this.add.image(cx, cy - 4, c.icon).setDisplaySize(52, 52));
+        if ((c.count ?? 1) > 1) this.menuBox.add(this.add.text(cx + cell / 2 - 10, cy + cell / 2 - 10, `×${c.count}`, { fontFamily: FONT_B, fontSize: '14px', color: '#ffffff', stroke: '#0b0820', strokeThickness: 4 }).setOrigin(1, 1));
+        if (c.on) this.menuBox.add(this.add.text(cx - cell / 2 + 8, cy - cell / 2 + 6, 'E', { fontFamily: FONT_B, fontSize: '14px', color: '#7cf0c8', stroke: '#0b0820', strokeThickness: 3 }));
+      });
+      this.gridCap = this.add.text(W / 2, y + 64 + gRows * cell + 8, '', { fontFamily: FONT, fontSize: '16px', color: '#e6e0ff', align: 'center', wordWrap: { width: w2 - 48, useAdvancedWrap: true } }).setOrigin(0.5, 0);
+      this.menuBox.add(this.gridCap); this.paintGrid();
+    }
     if (bodyT) {
-      bodyT.setPosition(x + 32, y + 64).setOrigin(0, 0);
-      if (bodyT.height > 300) bodyT.setFontSize(12).setLineSpacing(4);
+      bodyT.setPosition(x + 32, y + 64 + gridH).setOrigin(0, 0);
+      if (bodyT.height > 300 - gridH / 2) bodyT.setFontSize(this.grid.length ? 16 : 12).setLineSpacing(4);
       this.menuBox.add(bodyT);
     }
     opts.forEach((o, i) => {
       const col = Math.floor(i / perCol), row = i % perCol;
       const cx = cols === 2 ? W / 2 + (col ? 1 : -1) * w2 / 4 : W / 2;
-      const t = this.add.text(cx, y + 68 + bodyH + row * 44, o.label, { fontFamily: FONT, fontSize: cols === 2 ? '20px' : '24px', color: '#f5f0ff' })
+      const ty = y + 68 + gridH + bodyH + row * rowH;
+      const t = this.add.text(cx, ty, o.label, { fontFamily: FONT, fontSize: cols === 2 ? '20px' : '24px', color: '#f5f0ff' })
         .setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       t.on('pointerover', () => { this.menuIdx = i; this.paintMenu(); });
       t.on('pointerdown', () => { this.menuIdx = i; this.pickMenu(); });
+      if (o.icon && this.textures.exists(o.icon)) {
+        const ic = this.add.image(0, ty + 15, o.icon).setDisplaySize(32, 32);
+        (t as any).__icon = ic; this.menuBox.add(ic);
+      }
       this.menuTexts.push(t); this.menuBox.add(t);
     });
     this.menuBox.setVisible(true); this.paintMenu();
   }
+  private paintGrid() {
+    this.gridFrames.forEach((f, i) => f.setStrokeStyle(i === this.gridIdx ? 3 : 2, i === this.gridIdx ? 0xffd66b : this.grid[i].on ? 0x7cf0c8 : 0x4a3d86));
+    const c = this.grid[this.gridIdx];
+    if (c && this.gridCap) this.gridCap.setText(`${c.name}${(c.count ?? 1) > 1 ? ` ×${c.count}` : ''}${c.on ? ' [장착]' : ''}\n${c.desc ?? ''}`);
+  }
   private paintMenu() {
-    this.menuTexts.forEach((t, i) => t.setText(i === this.menuIdx ? `▶ ${this.menuOpts[i].label} ◀` : this.menuOpts[i].label)
-      .setColor(i === this.menuIdx ? '#ffd66b' : '#f5f0ff'));
+    this.menuTexts.forEach((t, i) => {
+      t.setText(i === this.menuIdx ? `▶ ${this.menuOpts[i].label} ◀` : this.menuOpts[i].label).setColor(i === this.menuIdx ? '#ffd66b' : '#f5f0ff');
+      const ic = (t as any).__icon as Phaser.GameObjects.Image | undefined;
+      if (ic) ic.setX(t.x - t.width / 2 - 22);
+    });
   }
   private pickMenu() {
     const o = this.menuOpts[this.menuIdx];
@@ -262,7 +298,11 @@ export class UIScene extends Phaser.Scene {
       if (Input.take('up')) { this.menuIdx = (this.menuIdx + this.menuOpts.length - 1) % this.menuOpts.length; this.paintMenu(); }
       if (Input.take('down')) { this.menuIdx = (this.menuIdx + 1) % this.menuOpts.length; this.paintMenu(); }
       const per = Math.ceil(this.menuOpts.length / 2);
-      if (this.menuOpts.length > 7 && (Input.take('right') || Input.take('left'))) { this.menuIdx = (this.menuIdx + per) % (per * 2); if (this.menuIdx >= this.menuOpts.length) this.menuIdx = this.menuOpts.length - 1; this.paintMenu(); }
+      if (this.grid.length) {
+        if (Input.take('right')) { this.gridIdx = (this.gridIdx + 1) % this.grid.length; this.paintGrid(); }
+        if (Input.take('left')) { this.gridIdx = (this.gridIdx + this.grid.length - 1) % this.grid.length; this.paintGrid(); }
+      }
+      if (!this.grid.length && this.menuOpts.length > 7 && (Input.take('right') || Input.take('left'))) { this.menuIdx = (this.menuIdx + per) % (per * 2); if (this.menuIdx >= this.menuOpts.length) this.menuIdx = this.menuOpts.length - 1; this.paintMenu(); }
       if (Input.take('confirm')) this.pickMenu();
       if (Input.take('menu')) { const close = this.menuOpts.findIndex(o => o.label === '닫기' || o.label === '계속하기'); if (close >= 0) { this.menuIdx = close; this.pickMenu(); } }
       return;

@@ -2,7 +2,7 @@
 // 문자열 안의 **굵게** 는 화면에서 강조로 바뀐다.
 
 export interface Answer { label: string; body: string[] }
-export interface Sub { id: string; title: string; giver: string; how: string; reward: string }
+export interface Sub { id: string; title: string; giver: string; how: string; reward: string; icon?: string }
 export interface Episode { title: string; how: string; answer?: string }
 export interface Region {
   id: string; name: string; act: string; owner: string; unlock: string; npcs: string;
@@ -41,7 +41,7 @@ export const REGIONS: Region[] = [
     ],
     answers: [],
     subs: [
-      { id: 'SQ01', title: '바람개비 우체부', giver: '피코', how: '바람에 날아간 편지 5통을 마을에서 줍는다. 언덕 위도 살펴보자.', reward: '별조각 30' },
+      { id: 'SQ01', icon: 'letters', title: '바람개비 우체부', giver: '피코', how: '바람에 날아간 편지 5통을 마을에서 줍는다. 언덕 위도 살펴보자.', reward: '별조각 30' },
       { id: 'SQ02', title: '이름 없는 이웃', giver: '빵집 할머니', how: '구름 주민 셋(모자 색이 다름)에게 말을 걸어 이름을 듣고 할머니에게 돌아간다.', reward: '버그 노트 cloud_03, 할머니 가게 열림' },
     ],
     episode: { title: '루뭉 — 첫 하늘', how: '시계탑 근처에서 시작. 마을에 흩어진 **스케치 조각 3개**를 모은다.' },
@@ -59,8 +59,8 @@ export const REGIONS: Region[] = [
       { label: '거울 반사 (다이얼)', body: ['왼쪽 거울 → **동**', '오른쪽 거울 → **북서**', '숲 속 거울 → **남**', '기억 장면에서 본 방향 그대로다. 퍼즐 설명에도 적혀 있다.'] },
     ],
     subs: [
-      { id: 'SQ03', title: '반대쪽 나', giver: '거울 정령 (MQ 시작 후 다시 말 걸기)', how: '좌우 조작이 바뀐 채로 숲 깊은 곳의 빛나는 표식까지 걸어간다. 어려우면 정령에게 말해 그만둘 수 있다.', reward: '별조각 30' },
-      { id: 'SQ04', title: '깨진 손거울', giver: '숲지기', how: '숲에 흩어진 손거울 조각 4개를 모은다.', reward: '**액세서리 칸 +1** (2칸이 된다)' },
+      { id: 'SQ03', icon: 'starShard', title: '반대쪽 나', giver: '거울 정령 (MQ 시작 후 다시 말 걸기)', how: '좌우 조작이 바뀐 채로 숲 깊은 곳의 빛나는 표식까지 걸어간다. 어려우면 정령에게 말해 그만둘 수 있다.', reward: '별조각 30' },
+      { id: 'SQ04', icon: 'shard', title: '깨진 손거울', giver: '숲지기', how: '숲에 흩어진 손거울 조각 4개를 모은다.', reward: '**액세서리 칸 +1** (2칸이 된다)' },
     ],
     episode: { title: '도담히 — 찢어진 일지', how: '숲 입구 문 근처에서 시작. **일지 페이지 3장**을 모은다.' },
     extras: ['잠긴 상자(빅윈 권한): 별조각 40.', '숨은 버그 노트 1개는 다래 측량으로만 보인다.'],
@@ -81,7 +81,7 @@ export const REGIONS: Region[] = [
       { label: '관람차 2페이즈 (다이얼)', body: ['제어 코드 = 개장 시각 10시 정각', '정답: **1 0 0 0** (시 십의 자리 1, 시 일의 자리 0, 분 0, 분 0)'] },
     ],
     subs: [
-      { id: 'SQ05', title: '잃어버린 풍선', giver: '길 잃은 아이', how: '공원에 날아간 풍선 6개를 찾는다.', reward: '별조각 40' },
+      { id: 'SQ05', icon: 'balloon', title: '잃어버린 풍선', giver: '길 잃은 아이', how: '공원에 날아간 풍선 6개를 찾는다.', reward: '별조각 40' },
       { id: 'SQ06', title: '최고 기록', giver: '오락실 주인', how: '**돗챠로** 말을 걸면 레이스 시작. 깃발 5개를 40초 안에 순서대로 통과. Q 돌진으로 가속할 수 있다.', reward: '버그 노트 park_02' },
     ],
     episode: { title: '돗챠 — 1분의 지각', how: '입구 순서표 근처에서 시작. 공원 시계 다이얼 퍼즐.', answer: '지금 10시 00분 → 1분 되돌리기: **9시 59분**' },
@@ -103,7 +103,7 @@ export const REGIONS: Region[] = [
     ],
     subs: [
       { id: 'SQ07', title: '고장 난 도우미', giver: 'B-07 (MQ 시작 후 다시 말 걸기)', how: '맵의 손상 섹터 3곳에서 뚜닝으로 Q → 타이밍 미니게임.', reward: '**이후 뚜닝 퍼즐에 해석 보조 힌트**가 붙는다. 일찍 하면 이득' },
-      { id: 'SQ08', title: '삭제 대기열', giver: 'MQ05 이후 생기는 "크론의 대기열 기록"', how: '정리 직전 파일 3개를 모아 B-07 옆 백업 폴더에 넣는다.', reward: '버그 노트 data_01' },
+      { id: 'SQ08', icon: 'file', title: '삭제 대기열', giver: 'MQ05 이후 생기는 "크론의 대기열 기록"', how: '정리 직전 파일 3개를 모아 B-07 옆 백업 폴더에 넣는다.', reward: '버그 노트 data_01' },
     ],
     episode: { title: '뚜닝 — 정리 규칙', how: '데이터 센터 안쪽에서 시작. 순서 퍼즐을 풀면 **크론 원본 설정 파일**을 얻는다.', answer: '**파일 열기 → 작성자 확인 → 규칙 읽기**' },
     extras: ['숨은 버그 노트 1개는 측량으로만 보인다.'],
@@ -121,7 +121,7 @@ export const REGIONS: Region[] = [
     ],
     choice: { label: '라일과의 대화 선택지', body: '"이유를 알아야 도울 수 있어" → 다래·뚜닝 유대 +1 / "기다릴게" → 빅윈·하밍 유대 +1. 엔딩에는 영향 없음, 유대만 다르다.' },
     subs: [
-      { id: 'SQ09', title: '씨앗 배달', giver: '라일 (MQ 시작 후 다시 말 걸기)', how: '화단 4곳에 맞는 씨앗을 심고 라일에게 돌아간다.', reward: '별사탕 3' },
+      { id: 'SQ09', icon: 'starCandy', title: '씨앗 배달', giver: '라일 (MQ 시작 후 다시 말 걸기)', how: '화단 4곳에 맞는 씨앗을 심고 라일에게 돌아간다.', reward: '별사탕 3' },
       { id: 'SQ10', title: '반딧불 지도', giver: '반딧불이', how: '빛나는 반딧불을 세 번 따라가면 숨은 화단이 나온다.', reward: '버그 노트 garden_01' },
     ],
     episode: { title: '하밍 — 마지막 꽃', how: '정원 안쪽에서 시작. 꽃잎이 열릴 때 SPACE/A 타이밍 3번 (느리고 쉬움).' },
@@ -139,7 +139,7 @@ export const REGIONS: Region[] = [
     answers: [],
     choice: { label: '종착역 이름', body: '아홉 명 중 누구 이름을 붙여도 된다. 이후 대사에 반영되지만 엔딩 조건에는 영향 없음.' },
     subs: [
-      { id: 'SQ11', title: '분실물 센터', giver: '역무원', how: '역 곳곳의 분실물 5개를 찾는다.', reward: '별조각 40' },
+      { id: 'SQ11', icon: 'lost', title: '분실물 센터', giver: '역무원', how: '역 곳곳의 분실물 5개를 찾는다.', reward: '별조각 40' },
       { id: 'SQ12', title: '시간표', giver: '역장 (MQ 시작 후 다시 말 걸기)', how: '뒤섞인 날짜를 먼저 생긴 순서대로 고른다.', reward: '버그 노트 station_02' },
     ],
     episode: { title: '다래 — 그리지 못한 선', how: '역 안쪽에서 시작. **노선도 조각 3개**를 모은다.' },
@@ -157,8 +157,8 @@ export const REGIONS: Region[] = [
     answers: [],
     choice: { label: '첫 사진의 주인공', body: '아홉 명 중 누구를 골라도 된다. 대사만 달라지고 엔딩 조건과는 무관.' },
     subs: [
-      { id: 'SQ13', title: '초점', giver: '사진사 (MQ 시작 후 다시 말 걸기)', how: '흐릿한 자리 3곳에서 으네로 다시 찍는다 (앨범에도 들어감).', reward: '별조각 30' },
-      { id: 'SQ14', title: '액자 가게', giver: '액자 장인', how: '액자 재료 3개를 모은다.', reward: '**빈 액자** — 최종장에 추가 장면' },
+      { id: 'SQ13', icon: 'part', title: '초점', giver: '사진사 (MQ 시작 후 다시 말 걸기)', how: '흐릿한 자리 3곳에서 으네로 다시 찍는다 (앨범에도 들어감).', reward: '별조각 30' },
+      { id: 'SQ14', icon: 'frame', title: '액자 가게', giver: '액자 장인', how: '액자 재료 3개를 모은다.', reward: '**빈 액자** — 최종장에 추가 장면' },
     ],
     episode: { title: '으네 — 단체 사진', how: '광장 카메라 앞에서 시작. 태엽이 맞물릴 때 SPACE/A 타이밍 3번.' },
     extras: ['잠긴 상자(빅윈 권한): 별조각 40.'],
@@ -175,8 +175,8 @@ export const REGIONS: Region[] = [
     answers: [],
     choice: { label: '포인트를 돌려준다 / 보류한다', body: '**보류**를 고르면 마지막 선택 전까지 **빅윈 권한 최대치가 1로 고정**된다. 잠긴 상자나 봉인을 더 열 생각이면 "돌려준다"가 편하다.' },
     subs: [
-      { id: 'SQ15', title: '길고양이', giver: '검은 고양이 (MQ09 이후)', how: '시로로 좁은 창살 틈을 지나 새끼 고양이를 데려온다.', reward: '버그 노트 shadow_02' },
-      { id: 'SQ16', title: '꺼진 간판', giver: '그림자 상인', how: '꺼진 간판 4개에 하밍으로 꽃등을 켠다.', reward: '별조각 50' },
+      { id: 'SQ15', icon: 'kitten', title: '길고양이', giver: '검은 고양이 (MQ09 이후)', how: '시로로 좁은 창살 틈을 지나 새끼 고양이를 데려온다.', reward: '버그 노트 shadow_02' },
+      { id: 'SQ16', icon: 'starShard', title: '꺼진 간판', giver: '그림자 상인', how: '꺼진 간판 4개에 하밍으로 꽃등을 켠다.', reward: '별조각 50' },
     ],
     episode: { title: '시로 — 혼자의 도시', how: '도시 안쪽에서 시작. 퍼즐 없이 이야기 장면.' },
     extras: ['잠긴 상자(빅윈 권한): 별조각 50.', '고양이 방울(액세서리)을 끼면 크론이 느려진다.'],
@@ -195,7 +195,7 @@ export const REGIONS: Region[] = [
       { label: '크론 — 정리 대상 목록', body: ['놀이공원 개장 계획표 → **돗챠**', '구름 마을의 첫 하늘 스케치 → **루뭉**', '기차역 순환선 노선도 → **다래**', '거울 숲 일지의 마지막 장 → **도담히**', '그림자 도시 옥상의 의자 아홉 개 → **시로**', '팀 폴더 정리 도구 v0.1 → **뚜닝**', '달빛 정원 물 주기 당번표 → **하밍**', '사진 속 마을 필름 서른여섯 장 → **으네**', '프로젝트 폴더 savria_v0.9 → **빅윈**'] },
     ],
     subs: [
-      { id: 'SQ17', title: '47개의 연기 기록', giver: '도착하면 자동 시작', how: '다래로 측량하면 숨은 연기 기록 3개가 보인다. 주우면 끝.', reward: '빅윈 유대 +1' },
+      { id: 'SQ17', icon: 'record', title: '47개의 연기 기록', giver: '도착하면 자동 시작', how: '다래로 측량하면 숨은 연기 기록 3개가 보인다. 주우면 끝.', reward: '빅윈 유대 +1' },
     ],
     episode: { title: '빅윈 — 주머니 속 열쇠', how: '문 앞에서 시작. **빛나는 연기 기록 3개**를 모으면 **저장 열쇠**.' },
     extras: ['숨은 버그 노트 1개는 측량으로만 보인다.'],
@@ -250,6 +250,30 @@ export const NAV: { href: string; label: string }[] = [
   { href: '/wiki/characters/', label: '능력 · 유대' },
   ...REGIONS.map(r => ({ href: `/wiki/region/${r.id}/`, label: `${r.act} · ${r.name}` })),
   { href: '/wiki/endings/', label: '엔딩 · 수집' },
-  { href: '/wiki/items/', label: '상점 · 아이템' },
+  { href: '/wiki/items/', label: '아이템 도감 · 상점' },
   { href: '/wiki/faq/', label: '막혔을 때' },
+];
+
+/** 아이템 도감 (게임 data/quests.ts ITEM_NAMES 기준) */
+export const ITEMS: { k: string; name: string; desc: string; where: string; group: string }[] = [
+  { k: 'starShard', group: '재화 · 소모품', name: '별조각', desc: '세이브리아의 화폐.', where: '서브 퀘스트, 잠긴 상자' },
+  { k: 'starCandy', group: '재화 · 소모품', name: '별사탕', desc: '빅윈 설계자 권한 1회 충전.', where: '상점 20, SQ09 보상 3개' },
+  { k: 'tea', group: '재화 · 소모품', name: '따뜻한 차', desc: '다음 휴식이 6시간 대신 4시간.', where: '상점 15' },
+  { k: 'cotton', group: '재화 · 소모품', name: '구름솜', desc: '루뭉 구름 발판 지속 2배, 5번.', where: '상점 10' },
+  { k: 'acc_feather', group: '액세서리', name: '깃털 핀', desc: '이동 속도가 조금 빨라진다.', where: '상점 60' },
+  { k: 'acc_brooch', group: '액세서리', name: '별 브로치', desc: '별조각을 1.5배 받는다.', where: '상점 80' },
+  { k: 'acc_bell', group: '액세서리', name: '고양이 방울', desc: '크론이 조금 느리게 쫓아온다.', where: '상점 70' },
+  { k: 'towerPieces', group: '퀘스트 물건', name: '시계탑 별 조각', desc: '세 개를 모으면 시계탑 별을 다시 켤 수 있다.', where: '구름 마을 MQ02' },
+  { k: 'letters', group: '퀘스트 물건', name: '날아간 편지', desc: '우체부 피코의 편지.', where: '구름 마을 SQ01' },
+  { k: 'shard', group: '퀘스트 물건', name: '손거울 조각', desc: '숲지기의 손거울 조각.', where: '거울의 숲 SQ04' },
+  { k: 'balloon', group: '퀘스트 물건', name: '풍선', desc: '길 잃은 아이의 풍선.', where: '놀이공원 SQ05' },
+  { k: 'file', group: '퀘스트 물건', name: '정리 직전 파일', desc: '곧 지워질 파일. 백업 폴더로 옮기자.', where: '데이터 센터 SQ08' },
+  { k: 'lost', group: '퀘스트 물건', name: '분실물', desc: '주인 잃은 물건.', where: '기차역 SQ11' },
+  { k: 'part', group: '퀘스트 물건', name: '암실 부품', desc: '사진관 암실을 고칠 부품.', where: '사진 마을 MQ08 (바랜 자리)' },
+  { k: 'mat', group: '퀘스트 물건', name: '액자 재료', desc: '나뭇조각, 유리, 금박.', where: '사진 마을 SQ14' },
+  { k: 'kitten', group: '퀘스트 물건', name: '새끼 고양이', desc: '품 안에서 골골거린다.', where: '그림자 도시 SQ15' },
+  { k: 'record', group: '퀘스트 물건', name: '숨은 연기 기록', desc: '빅윈이 숨긴 저장 연기 기록.', where: '마지막 저장소 SQ17' },
+  { k: 'frame', group: '중요한 물건', name: '빈 액자', desc: '아홉 명이 들어갈 만한 큰 액자. 최종장에 추가 장면.', where: '사진 마을 SQ14 보상' },
+  { k: 'cronCfg', group: '중요한 물건', name: '크론 원본 설정 파일', desc: '작성자: 뚜닝. 마지막 줄이 흐릿하다.', where: '뚜닝 에피소드 보상' },
+  { k: 'saveKey', group: '중요한 물건', name: '저장 열쇠', desc: '빅윈의 주머니 속 작은 금색 열쇠. 트루 엔딩 필수.', where: '빅윈 에피소드 보상' },
 ];

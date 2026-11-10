@@ -5,6 +5,7 @@ import { makeProps } from '../gfx/paint';
 const urls = import.meta.glob('../assets/chars/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const url = (name: string) => urls[`../assets/chars/${name}.png`];
 const decoUrls = import.meta.glob('../assets/deco/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const itemUrls = import.meta.glob('../assets/items/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const npcUrls = import.meta.glob('../assets/npc/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 /** NPC 걷기 시트 칸 크기 (3프레임 × 4방향: 아래·왼쪽·오른쪽·위) */
 export const NPC_SHEETS: Record<string, [number, number]> = { point: [54, 60], cron: [47, 64], folk: [49, 61], spirit: [64, 66], firefly: [72, 65], cat: [59, 66], kid: [55, 63] };
@@ -19,6 +20,7 @@ export class BootScene extends Phaser.Scene {
     this.add.rectangle(W / 2, H / 2, 304, 14).setStrokeStyle(2, 0xf5f0ff);
     this.load.on('progress', (p: number) => bar.setSize(300 * p, 8));
     // 디자인 소품 PNG: assets/props/<소품이름>.png (예: ferris.png, house_e7799b.png)
+    for (const [path, u] of Object.entries(itemUrls)) this.load.image(`item_${path.split('/').pop()!.replace('.png', '')}`, u);
     for (const [path, u] of Object.entries(decoUrls)) this.load.image(`deco_${path.split('/').pop()!.replace('.png', '')}`, u);
     for (const [path, u] of Object.entries(npcUrls)) {
       const name = path.split('/').pop()!.replace('.png', '');

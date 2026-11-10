@@ -51,7 +51,7 @@ export default function RegionPage({ params }: { params: { id: string } }) {
         <h2>서브 퀘스트</h2>
         <ul className="wiki-subs">{r.subs.map(s => (
           <li key={s.id}>
-            <h3><span className="qid">{s.id}</span>{s.title}</h3>
+            <h3>{s.icon && <img className="sub-icon" src={`/items/${s.icon}.png`} alt="" />}<span className="qid">{s.id}</span>{s.title}</h3>
             <dl>
               <div><dt>받는 곳</dt><dd>{s.giver}</dd></div>
               <div><dt>할 일</dt><dd><Rich t={s.how} /></dd></div>

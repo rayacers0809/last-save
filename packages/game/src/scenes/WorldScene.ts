@@ -26,6 +26,8 @@ import { regionName, countNotes, NOTE_TOTAL } from '../data/quests';
 import { cloudPos, CLOUD_FG } from '../world/cloudVillage';
 
 interface ThingInst { def: Thing; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number; key: string; tile: Pt }
+/** 필드 오브젝트 텍스처 → 아이템 그림 */
+const THING_ITEM: Record<string, string> = { shard: 'shard', balloon: 'balloon', file: 'file', lost: 'lost', frame: 'mat', kitten: 'kitten', record: 'record' };
 const MQ_OF: Record<string, string> = { cloud: 'mq.cloud', mirror: 'mq.mirror', park: 'mq.park', data: 'mq.datacenter', garden: 'mq.garden', station: 'mq.station', photo: 'mq.photo', shadow: 'mq.shadow', lastsave: 'mq.final' };
 const WORLD_MQ = ['mq.mirror', 'mq.park', 'mq.datacenter', 'mq.garden', 'mq.station', 'mq.photo', 'mq.shadow'];
 
@@ -479,7 +481,10 @@ export class WorldScene extends Phaser.Scene {
     const d = GameState.data, have = new Set(this.pickups.map(p => p.id));
     const add = (id: string, kind: 'piece' | 'letter', s: { x: number; y: number }) => {
       if (have.has(id) || d.picked.includes(id)) return;
-      const spr = this.add.image(s.x * TILE + 12, s.y * TILE + 12, kind === 'piece' ? 'starpiece' : 'letter').setDepth((s.y + 1) * TILE).setScale(1.3);
+      const ik = kind === 'piece' ? 'item_towerPieces' : 'item_letters';
+      const spr = this.textures.exists(ik) ? this.add.image(s.x * TILE + 12, s.y * TILE + 12, ik).setDepth((s.y + 1) * TILE).setDisplaySize(34, 34)
+        : this.add.image(s.x * TILE + 12, s.y * TILE + 12, kind === 'piece' ? 'starpiece' : 'letter').setDepth((s.y + 1) * TILE).setScale(1.3);
+      if (this.textures.exists(ik)) this.glow(spr);
       this.tweens.add({ targets: spr, y: spr.y - 5, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       if (kind === 'piece') this.tweens.add({ targets: spr, alpha: 0.6, duration: 400, yoyo: true, repeat: -1 });
       this.pickups.push({ id, kind, spr });
@@ -635,18 +640,19 @@ export class WorldScene extends Phaser.Scene {
   }
   private showBag() {
     const d = GameState.data;
-    const lines = Object.entries(d.inventory).filter(([k, n]) => n > 0 && k !== 'epfrag').map(([k, n]) => `${ITEM_NAMES[k]?.name ?? k} ×${n}${d.equip.includes(k) ? ' [장착]' : ''} — ${ITEM_NAMES[k]?.desc ?? ''}`);
-    lines.push(`버그 노트 ${countNotes(d.bugNotes)}/${NOTE_TOTAL} · 세계 기억 ${d.memories.world}/8 · 핵심 기억 ${d.memories.core.length}/9 · 설계자 권한 ${GameState.bwCharges()}/${GameState.bwMax()}`);
-    const opts: { label: string; act: () => void }[] = [];
-    if (GameState.item('starCandy') > 0) opts.push({ label: '별사탕 쓰기', act: () => {
+    const grid = Object.entries(d.inventory).filter(([k, n]) => n > 0 && k !== 'epfrag')
+      .map(([k, n]) => ({ icon: `item_${k}`, name: ITEM_NAMES[k]?.name ?? k, count: n, desc: ITEM_NAMES[k]?.desc ?? '', on: d.equip.includes(k) }));
+    const lines = [grid.length ? '' : '가방이 비어 있다.', `버그 노트 ${countNotes(d.bugNotes)}/${NOTE_TOTAL} · 세계 기억 ${d.memories.world}/8 · 핵심 기억 ${d.memories.core.length}/9 · 설계자 권한 ${GameState.bwCharges()}/${GameState.bwMax()}`].filter(Boolean);
+    const opts: { label: string; act: () => void; icon?: string }[] = [];
+    if (GameState.item('starCandy') > 0) opts.push({ icon: 'item_starCandy', label: '별사탕 쓰기', act: () => {
       if (GameState.bwCharges() >= GameState.bwMax()) return toast('설계자 권한이 이미 가득 찼어.');
       GameState.addItem('starCandy', -1); GameState.setBw(GameState.bwCharges() + 1); Audio.sfx('star'); toast(`설계자 권한 충전! (${GameState.bwCharges()}/${GameState.bwMax()})`);
     } });
-    if (GameState.item('tea') > 0 && !GameState.flag('buff.tea')) opts.push({ label: '따뜻한 차 마시기', act: () => { GameState.addItem('tea', -1); GameState.setFlag('buff.tea'); toast('몸이 따뜻해졌다. 다음 휴식은 4시간이면 된다.'); } });
-    if (GameState.item('cotton') > 0) opts.push({ label: '구름솜 쓰기', act: () => { GameState.addItem('cotton', -1); GameState.setFlag('buff.cotton', ((GameState.flag('buff.cotton') as number) || 0) + 5); toast('구름 발판이 다섯 번 동안 두 배로 오래 간다.'); } });
+    if (GameState.item('tea') > 0 && !GameState.flag('buff.tea')) opts.push({ icon: 'item_tea', label: '따뜻한 차 마시기', act: () => { GameState.addItem('tea', -1); GameState.setFlag('buff.tea'); toast('몸이 따뜻해졌다. 다음 휴식은 4시간이면 된다.'); } });
+    if (GameState.item('cotton') > 0) opts.push({ icon: 'item_cotton', label: '구름솜 쓰기', act: () => { GameState.addItem('cotton', -1); GameState.setFlag('buff.cotton', ((GameState.flag('buff.cotton') as number) || 0) + 5); toast('구름 발판이 다섯 번 동안 두 배로 오래 간다.'); } });
     for (const s of SHOP.filter(x => x.acc && GameState.item(x.k) > 0)) {
       const on = d.equip.includes(s.k);
-      opts.push({ label: `${on ? '해제' : '장착'}: ${ITEM_NAMES[s.k].name}`, act: () => {
+      opts.push({ icon: `item_${s.k}`, label: `${on ? '해제' : '장착'}: ${ITEM_NAMES[s.k].name}`, act: () => {
         if (on) d.equip = d.equip.filter(k => k !== s.k);
         else if (d.equip.length >= GameState.equipSlots()) return toast(`액세서리 칸이 가득 찼어. (${GameState.equipSlots()}칸)`);
         else d.equip.push(s.k);
@@ -654,7 +660,7 @@ export class WorldScene extends Phaser.Scene {
       } });
     }
     opts.push({ label: '닫기', act: () => {} });
-    Bus.emit('menu', '가방', opts, lines.join('\n'));
+    Bus.emit('menu', '가방', opts, lines.join('\n'), grid);
   }
 
   private onTag(t: string) {
@@ -917,6 +923,17 @@ export class WorldScene extends Phaser.Scene {
     this.refreshThings(); Bus.emit('hud-refresh');
   }
 
+  /** 필드 오브젝트 텍스처. 아이템 그림이 있으면 그걸 쓰고 크기를 맞춘다 */
+  private setThingTex(spr: Phaser.GameObjects.Image, tex: string) {
+    const item = THING_ITEM[tex];
+    if (item && this.textures.exists(`item_${item}`)) { spr.setTexture(`item_${item}`).setDisplaySize(34, 34); this.glow(spr); }
+    else spr.setTexture(`th_${tex}`).setScale(1.3);
+  }
+  /** 배경에 묻히지 않게 아이템 그림에 옅은 빛 테두리 */
+  private glow(spr: Phaser.GameObjects.Image) {
+    if ((spr as any).__glow || !spr.preFX) return;
+    (spr as any).__glow = spr.preFX.addGlow(0xfff6d6, 3, 0, false, 0.1, 10);
+  }
   private buildThings(spawn: Pt) {
     const r = this.region;
     const anchors: Pt[] = [this.pointSpot, ...this.signs, ...(r ? r.npcs : VILLAGERS), ...(r ? r.notes : BUG_NOTES)];
@@ -926,7 +943,7 @@ export class WorldScene extends Phaser.Scene {
       const p = this.resolve(def.at, spawn);
       const x = p.x * TILE + TILE / 2, y = (p.y + 1) * TILE - 2;
       const tex = typeof def.tex === 'function' ? def.tex() : def.tex;
-      const spr = this.add.image(x, y, `th_${tex}`).setOrigin(0.5, 1).setDepth(y).setScale(1.3);
+      const spr = this.add.image(x, y, `th_${tex}`).setOrigin(0.5, 1).setDepth(y); this.setThingTex(spr, tex);
       if (def.once || tex === 'memory' || tex === 'photo' || tex === 'goal' || tex === 'firefly') this.tweens.add({ targets: spr, y: y - 5, duration: 700 + (x % 300), yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       const label = typeof def.label === 'function' ? def.label() : def.label ?? '';
       const tag = this.add.text(x, y + 2, label, { fontFamily: FONT, fontSize: '12px', color: '#fff6d6', stroke: '#1a1438', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(9000).setVisible(false);
@@ -958,7 +975,7 @@ export class WorldScene extends Phaser.Scene {
     for (const t of this.things) {
       const v = this.thingVisible(t);
       t.spr.setVisible(v);
-      if (v) { const tex = typeof t.def.tex === 'function' ? t.def.tex() : t.def.tex; t.spr.setTexture(`th_${tex}`); }
+      if (v) { const tex = typeof t.def.tex === 'function' ? t.def.tex() : t.def.tex; this.setThingTex(t.spr, tex); }
       const m = v && !this.preview ? t.def.mark?.() ?? '' : '';
       t.mark.setText(m).setVisible(!!m).setBackgroundColor(m === '♥' ? '#ff9ec4' : m === '✦' ? '#d9ccff' : '#ffd66b');
       if (!v) t.tag.setVisible(false);
@@ -1184,7 +1201,7 @@ export class WorldScene extends Phaser.Scene {
   }
   private openShop(title: string) {
     const d = GameState.data;
-    const opts = SHOP.filter(s => !(s.acc && GameState.item(s.k) > 0)).map(s => ({ label: `${ITEM_NAMES[s.k].name} — 별조각 ${s.price}`, act: () => {
+    const opts: { label: string; act: () => void; icon?: string }[] = SHOP.filter(s => !(s.acc && GameState.item(s.k) > 0)).map(s => ({ icon: `item_${s.k}`, label: `${ITEM_NAMES[s.k].name} — 별조각 ${s.price}`, act: () => {
       if (GameState.item('starShard') < s.price) return toast('별조각이 모자라.');
       GameState.addItem('starShard', -s.price); GameState.addItem(s.k); Audio.sfx('get');
       toast(`${ITEM_NAMES[s.k].name}을(를) 샀다.${s.acc ? ' 가방에서 장착할 수 있어.' : ''}`);
