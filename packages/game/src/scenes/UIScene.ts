@@ -21,6 +21,7 @@ export function runDialogue(knot: string): Promise<string[]> {
 export function toast(text: string) { Bus.emit('toast', text); }
 
 interface MenuOpt { label: string; act: () => void; icon?: string }
+export interface GuideInfo { sx: number; sy: number; lx: number; ly: number; lift: number; label: string; tip: string; far: boolean }
 /** 메뉴 위에 깔리는 아이콘 칸 (가방) */
 export interface GridCell { icon: string; name: string; count?: number; desc?: string; on?: boolean }
 
@@ -86,9 +87,11 @@ export class UIScene extends Phaser.Scene {
       this.box.setVisible(true); this.step();
     });
     Bus.on('toast', (t: string) => this.showToast(t));
+    Bus.on('guide', (g: GuideInfo | null) => this.drawGuide(g));
+    Bus.on('hud', (on: boolean) => { if (!on) this.drawGuide(null); });
     Bus.on('item-get', (k: string, n: number) => this.itemPop(k, n));
     Bus.on('wipe', (dir: 'out' | 'in', done?: () => void) => this.wipe(dir, done));
-    Bus.on('title-card', (kicker: string, name: string) => this.titleCard(kicker, name));
+    Bus.on('title-card', (kicker: string, name: string, sub?: string) => this.titleCard(kicker, name, sub));
     Bus.on('hud', (on: boolean) => { this.hud.setVisible(on); this.refreshHud(); });
     Bus.on('hud-refresh', () => this.refreshHud());
     Bus.on('ui-reset', () => {
@@ -126,7 +129,7 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: t, alpha: 0, delay: 2400, duration: 300, onComplete: () => { this.toasts = this.toasts.filter(x => x !== t); t.destroy(); this.layoutToasts(); } });
   }
   private layoutToasts() {
-    let y = 84;
+    let y = this.guideBox?.visible ? 136 : 84;
     for (const t of this.toasts) { this.tweens.add({ targets: t, y, duration: 120 }); y += t.height + 6; }
   }
 
@@ -221,6 +224,40 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- 메뉴 ----------
+  // ---------- 길 안내 ----------
+  private guideBox?: Phaser.GameObjects.Container;
+  private guideLabel?: Phaser.GameObjects.Text;
+  private guideTip?: Phaser.GameObjects.Text;
+  private guideArrow?: Phaser.GameObjects.Container;
+  private drawGuide(g: GuideInfo | null) {
+    if (!this.guideBox) {
+      this.guideLabel = this.add.text(0, 0, '', { fontFamily: FONT_B, fontSize: '18px', color: '#ffd66b', stroke: '#160f33', strokeThickness: 5 }).setOrigin(0, 0);
+      this.guideTip = this.add.text(0, 26, '', { fontFamily: FONT, fontSize: '15px', color: '#7cf0c8', stroke: '#160f33', strokeThickness: 4, wordWrap: { width: 420, useAdvancedWrap: true } }).setOrigin(0, 0);
+      this.guideBox = this.add.container(16, 86, [this.guideLabel, this.guideTip]).setDepth(25);
+      const tri = this.add.triangle(0, 0, 0, -14, 22, 0, 0, 14, 0xffd66b).setStrokeStyle(3, 0x160f33);
+      const dot = this.add.circle(-6, 0, 3, 0x160f33);
+      this.guideArrow = this.add.container(0, 0, [tri, dot]).setDepth(25);
+      this.tweens.add({ targets: tri, scale: 1.18, duration: 450, yoyo: true, repeat: -1 });
+    }
+    const on = !!g && this.hud.visible && !UIState.busy;
+    this.guideBox.setVisible(on); this.guideArrow!.setVisible(false);
+    if (!g || !on) return;
+    this.guideLabel!.setText(`▶ ${g.label}`);
+    this.guideTip!.setText(g.tip).setVisible(!!g.tip);
+    if (!g.far) return;
+    const M = 46, inside = g.sx > M && g.sx < W - M && g.sy > 140 && g.sy < H - M;
+    const a = this.guideArrow!;
+    if (inside) {
+      // 화면 안: 목표 바로 위에서 아래를 가리킨다
+      a.setPosition(g.sx, g.sy - g.lift).setRotation(Math.PI / 2).setVisible(true);
+    } else {
+      const ang = Math.atan2(g.sy - g.ly, g.sx - g.lx);
+      const cx = W / 2, cy = (H + 140) / 2, hw = W / 2 - M, hh = (H - 140) / 2 - M;
+      const k = Math.min(hw / Math.abs(Math.cos(ang) || 1e-6), hh / Math.abs(Math.sin(ang) || 1e-6));
+      a.setPosition(cx + Math.cos(ang) * k, cy + Math.sin(ang) * k).setRotation(ang).setVisible(true);
+    }
+  }
+
   // ---------- 지역 전환 ----------
   private wipeG?: Phaser.GameObjects.Graphics;
   private wipeCells: { x: number; y: number; t: number; star: boolean }[] = [];
@@ -265,7 +302,7 @@ export class UIScene extends Phaser.Scene {
     }
   }
   /** 도착한 지역 이름 카드 */
-  private titleCard(kicker: string, name: string) {
+  private titleCard(kicker: string, name: string, sub = '') {
     const c = this.add.container(W / 2, 118).setDepth(4000).setAlpha(0);
     const k = this.add.text(0, -26, kicker, { fontFamily: FONT, fontSize: '16px', color: '#ffd66b' }).setOrigin(0.5);
     const t = this.add.text(0, 6, name, { fontFamily: FONT_B, fontSize: '32px', color: '#f5f0ff', stroke: '#160f33', strokeThickness: 6 }).setOrigin(0.5);
@@ -274,8 +311,9 @@ export class UIScene extends Phaser.Scene {
     g.fillStyle(0xffd66b, 1).fillRect(-lw, 32, lw - 14, 2).fillRect(14, 32, lw - 14, 2);
     g.fillPoints([{ x: 0, y: 27 }, { x: 6, y: 33 }, { x: 0, y: 39 }, { x: -6, y: 33 }], true);
     c.add([g, k, t]);
+    if (sub) c.add(this.add.text(0, 50, sub, { fontFamily: FONT, fontSize: '17px', color: '#e6e0ff', stroke: '#160f33', strokeThickness: 5 }).setOrigin(0.5, 0));
     this.tweens.add({ targets: c, alpha: 1, y: 128, duration: 500, ease: 'Sine.out' });
-    this.tweens.add({ targets: c, alpha: 0, y: 112, delay: 2300, duration: 600, onComplete: () => c.destroy() });
+    this.tweens.add({ targets: c, alpha: 0, y: 112, delay: sub ? 3300 : 2300, duration: 600, onComplete: () => c.destroy() });
   }
 
   private grid: GridCell[] = [];

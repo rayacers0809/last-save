@@ -29,11 +29,22 @@ import { regionName, countNotes, NOTE_TOTAL } from '../data/quests';
 import { cloudPos, CLOUD_FG } from '../world/cloudVillage';
 
 interface ThingInst { def: Thing; spr: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; mark: Phaser.GameObjects.Text; x: number; y: number; key: string; tile: Pt }
+/** 지역 메인 퀘스트를 주는 주민 (길 안내에서 먼저 가리킨다) */
+const MAIN_FOLK: Record<string, string> = { mirror: 'spirit', park: 'clerk', data: 'b07', garden: 'lyle', station: 'master', photo: 'photographer', shadow: 'cat', trash: 'cron' };
+/** 지역에 들어설 때 보여 주는 한 줄 목표 */
+const REGION_GOAL: Record<string, string> = {
+  cloud: '흩어진 친구들을 찾고, 시계탑의 별을 다시 켜자', mirror: '거울에 비치지 않는 우리 — 거울의 기억을 읽자',
+  park: '개장 1분 전에 멈춘 놀이공원을 다시 돌리자', data: '세계를 지우는 정리 프로그램의 흔적을 쫓자',
+  garden: '피지 못한 달꽃을 피우자', station: '이름이 지워진 종착역까지 선로를 잇자',
+  photo: '사람이 찍히지 않는 사진의 비밀을 풀자', shadow: '크론을 피해 포인트의 정체를 밝히자',
+  lastsave: '마지막으로 무엇을 저장할지 정하자', trash: '지워진 것들이 모이는 곳',
+};
 /** 필드 오브젝트 텍스처 → 아이템 그림 */
 const THING_ITEM: Record<string, string> = { page: 'page', shard: 'shard', balloon: 'balloon', file: 'file', lost: 'lost', frame: 'mat', kitten: 'kitten', record: 'record' };
 const MQ_OF: Record<string, string> = { cloud: 'mq.cloud', mirror: 'mq.mirror', park: 'mq.park', data: 'mq.datacenter', garden: 'mq.garden', station: 'mq.station', photo: 'mq.photo', shadow: 'mq.shadow', lastsave: 'mq.final' };
 const WORLD_MQ = ['mq.mirror', 'mq.park', 'mq.datacenter', 'mq.garden', 'mq.station', 'mq.photo', 'mq.shadow'];
 
+const t2s = (l?: string | (() => string)) => (typeof l === 'function' ? l() : l) ?? '';
 const SWITCH_HINT = (n: number) => isTouchDevice() ? `아래 캐릭터 버튼(${n}번)` : `숫자키 ${n}`;
 
 interface Actor { id: CharId; dir: Dir; spr: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Image; tag: Phaser.GameObjects.Text; x: number; y: number; flip: boolean; walk: number }
@@ -115,7 +126,7 @@ export class WorldScene extends Phaser.Scene {
     for (const k of Object.keys(d.flags)) if (k.startsWith(`bloom:${this.mapId}:`)) { const [x, y] = k.split(':')[2].split(',').map(Number); this.grid[y][x] = ','; }
     this.vines.clear();
     GameState.setFlag(`visit.${this.mapId}`);
-    this.bridges.clear(); this.rocks.clear(); this.actors.clear(); this.npcs = []; this.notes = []; this.flowers = []; this.hist = []; this.glitchCount = 0; this.lock = false; this.folks = []; this.pickups = []; this.pendingRest = false; this.skyStar = undefined;
+    this.bridges.clear(); this.rocks.clear(); this.actors.clear(); this.npcs = []; this.notes = []; this.flowers = []; this.hist = []; this.glitchCount = 0; this.lock = false; this.folks = []; this.pickups = []; this.pendingRest = false; this.skyStar = undefined; this.guideG = undefined; this.guidePath = []; this.guideNeed = null; this.guideT = 0;
 
     const img = this.region ? this.region.image : MAP_IMG['../assets/maps/cloud.webp'];
     const texKey = `mapimg_${this.mapId}`;
@@ -181,7 +192,7 @@ export class WorldScene extends Phaser.Scene {
       Bus.emit('wipe', 'in');
       const m = MAP_ORDER.find(x => x.id === this.mapId);
       const kicker = m ? (m.act === 0 ? '프롤로그' : m.act === 5 ? '시크릿' : `${m.act}막`) : '';
-      this.time.delayedCall(350, () => { Bus.emit('title-card', this.preview ? `${kicker} · 둘러보기` : kicker, m?.name ?? ''); Audio.sfx('arrive'); });
+      this.time.delayedCall(350, () => { Bus.emit('title-card', this.preview ? `${kicker} · 둘러보기` : kicker, m?.name ?? '', this.preview ? '' : GameState.flag(MQ_OF[this.mapId] ?? '-') ? '이 지역의 별은 이미 켜져 있다' : (REGION_GOAL[this.mapId] ?? '')); Audio.sfx('arrive'); });
     } else this.cameras.main.fadeIn(500, 255, 255, 255);
 
     if (!this.preview || this.mapId !== 'studio') ambient(this, this.mapId);
@@ -193,7 +204,7 @@ export class WorldScene extends Phaser.Scene {
     this.events.once('shutdown', () => { Bus.off('tag', onTag); Bus.off('time-spent', onSpent); Bus.off('time-up', onUp); Bus.emit('hud', false); Bus.emit('ui-reset'); });
     Audio.bgm(this.region ? this.region.bgm : 'village');
 
-    if (data.from === 'new') this.time.delayedCall(700, () => runDialogue('arrive'));
+    if (data.from === 'new') this.time.delayedCall(700, async () => { await runDialogue('arrive'); this.time.delayedCall(300, () => this.howTo()); });
     else if (data.from === 'travel') this.time.delayedCall(400, () => {
       const arrive = this.script?.arrive;
       const secret = this.mapId === 'trash' && GameState.flag('secret.mode');
@@ -393,6 +404,12 @@ export class WorldScene extends Phaser.Scene {
     const th = this.nearThing(46, t => !!t.def.use || !!t.def.ability);
     if (th) {
       if (th.def.use) return this.runAct(th.def.use);
+      const d = GameState.data, ab = th.def.ability ?? {};
+      const who = (ab[d.leader] ? d.leader : (Object.keys(ab) as CharId[]).find(w => d.party.includes(w)));
+      if (who) {
+        if (who !== d.leader) { this.switchTo(who); if (d.leader !== who) return; }
+        return this.runAct(ab[who]!);
+      }
       return toast(this.abilityHint(th.def));
     }
     const pf = feetOf(this.pointSpot);
@@ -404,6 +421,7 @@ export class WorldScene extends Phaser.Scene {
     }
     const tf = feetOf(TOWER_SPOT);
     if (!this.region && Math.hypot(L.x - tf.x, L.y - tf.y) < 60) return this.towerInteract();
+    if (this.autoAbility()) return;
     const fx = Math.floor((L.x + this.face.x * 20) / TILE), fy = Math.floor((L.y - 6 + this.face.y * 20) / TILE);
     if (this.grid[fy]?.[fx] === 'X') return this.rockHint();
     const sign = this.signs.find(s => Math.abs(s.x - fx) <= 1 && Math.abs(s.y - fy) <= 1 && near(s.x * TILE + 12, s.y * TILE + 12, 48));
@@ -569,9 +587,13 @@ export class WorldScene extends Phaser.Scene {
       void visited; void act;
       return '…아직 아무도 모르는 곳이다';
     };
-    const opts = MAP_ORDER.filter(m => m.id !== this.mapId).map(m => {
+    // 추천: 열려 있고 아직 별을 못 켠 첫 지역
+    const rec = this.preview ? undefined : MAP_ORDER.find(m => m.id !== 'studio' && m.id !== 'trash' && !avail(m.id, m.act) && !GameState.flag(MQ_OF[m.id] ?? '-'));
+    const list = MAP_ORDER.filter(m => m.id !== this.mapId && (this.preview || m.id !== 'studio') && (this.preview || m.id !== 'trash' || !avail(m.id, m.act)));
+    if (rec) list.sort((a, b) => Number(b.id === rec.id) - Number(a.id === rec.id));
+    const opts = list.map(m => {
       const lock = avail(m.id, m.act);
-      return { label: `${m.name}${lock ? ' (잠김)' : GameState.flag(MQ_OF[m.id] ?? '-') ? ' ★' : ''}`, act: () => lock ? toast(lock) : this.travel(m.id) };
+      return { label: `${m.id === rec?.id ? '▶ 추천 · ' : ''}${m.name}${lock ? ' (잠김)' : GameState.flag(MQ_OF[m.id] ?? '-') ? ' ★' : ''}`, act: () => lock ? toast(lock) : this.travel(m.id) };
     });
     opts.push({ label: '닫기', act: () => {} });
     Bus.emit('menu', this.preview ? '맵 둘러보기 — 어디로 갈까?' : '하늘 정류장 — 어디로 갈까?', opts, this.preview ? '둘러보기 모드: 시간이 흐르지 않고 저장되지 않아요.' : '처음 가는 곳은 2시간, 가 본 곳은 1시간이 흐른다. ★ = 별을 되찾은 지역');
@@ -627,6 +649,8 @@ export class WorldScene extends Phaser.Scene {
     Bus.emit('menu', '일시정지', [
       { label: '계속하기', act: () => {} },
       { label: '힌트 — 다음에 뭘 하지?', act: () => this.showHint() },
+      { label: '조작 다시 보기', act: () => this.howTo() },
+      { label: '이 지역 공략 보기 (새 창)', act: () => { try { window.open(`/wiki/region/${this.mapId}/`, '_blank', 'noopener'); } catch { /* 무시 */ } } },
       { label: '퀘스트 (J)', act: () => this.showQuests() },
       { label: '가방 (I)', act: () => this.showBag() },
       { label: '동료 · 유대', act: () => this.showParty() },
@@ -766,8 +790,11 @@ export class WorldScene extends Phaser.Scene {
     if (th) {
       const fn = th.def.ability![id];
       if (fn) return this.runAct(fn);
+      const alt = (Object.keys(th.def.ability!) as CharId[]).find(w => GameState.data.party.includes(w));
+      if (alt && id !== 'darae') { this.switchTo(alt); if (GameState.data.leader === alt) return this.runAct(th.def.ability![alt]!); }
       if (id !== 'darae' && !(id === 'dotcha' && this.raceState)) return toast(this.abilityHint(th.def));
     }
+    if (this.guideNeed && this.guideNeed.who !== id && this.autoAbility()) return;
     if (id === 'rumung') return this.cloudStep(tx, ty);
     if (id === 'dotcha') { if (this.raceState) { this.boost = 1.2; this.abilityCd = 1.8; Audio.sfx('dash'); return; } return this.dash(tx, ty); }
     if (id === 'haming') return this.bloom(tx, ty);
@@ -1272,6 +1299,174 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+
+  // ---------- 길 안내 (다음 목표까지 경로 · 화살표 · 필요한 능력) ----------
+  private guideG?: Phaser.GameObjects.Graphics;
+  private guideT = 0;
+  private guidePath: Pt[] = [];
+  /** 경로 위 첫 능력 칸: 그 앞 칸(edge)에서 누구의 능력이 필요한지 */
+  private guideNeed: { edge: Pt; tile: Pt; who: CharId } | null = null;
+  private guideGoal: { x: number; y: number; label: string } | null = null;
+
+  /** 처음 시작할 때 한 번: 어떻게 하는지 */
+  private howTo() {
+    GameState.setFlag('tut.howto');
+    Bus.emit('menu', '이렇게 하면 돼요', [{ label: '알겠어!', act: () => {} }], [
+      '① 왼쪽 위 ▶ 노란 글씨 = 지금 할 일',
+      '② 바닥의 노란 점과 화살표를 따라 걸어가요',
+      '③ 사람·물건 앞에서 Space (모바일 A)',
+      '    필요한 동료의 능력은 알아서 바꿔서 써 줘요',
+      '④ 민트색 칸이 보이면 그 위에서 Space',
+      '    → 구름 발판·바위 부수기 같은 능력이 나가요',
+      '⑤ 막히면 Esc(≡) → 힌트 · 숫자 1~9로 직접 교체도 가능',
+    ].join('\n'));
+  }
+  /** 테스트·디버그용 */
+  get guideInfo() { return { goal: this.guideGoal, path: this.guidePath, need: this.guideNeed }; }
+  /** 지금 가야 할 곳 (월드 좌표) */
+  private guideTarget(): { x: number; y: number; label: string } | null {
+    if (this.preview || this.chaseState || this.raceState) return null;
+    const L = this.lead, d = GameState.data;
+    const nearest = <T extends { x: number; y: number }>(a: T[]) => a.sort((p, q) => Math.hypot(p.x - L.x, p.y - L.y) - Math.hypot(q.x - L.x, q.y - L.y))[0];
+    const station = () => {
+      for (let y = 0; y < this.rows; y++) for (let x = 0; x < this.cols; x++) if (this.grid[y][x] === 'S') return { x: x * TILE + 12, y: y * TILE + 20, label: '하늘 정류장 — 다음 지역으로' };
+      return null;
+    };
+    if (!this.region) {
+      if (this.mapId !== 'cloud') return null;
+      if (!GameState.flag('mq.gather')) {
+        const n = nearest(this.npcs.slice());
+        return n ? { x: n.x, y: n.y, label: `${charById(n.id).name} 찾기 (${d.party.length}/9)` } : null;
+      }
+      if (!GameState.flag('mq.cloud')) {
+        if (GameState.item('towerPieces') >= 3) { const f = feetOf(TOWER_SPOT); return { x: f.x, y: f.y, label: '무너진 시계탑에 별 조각 맞추기' }; }
+        const pc = nearest(this.pickups.filter(p => p.kind === 'piece' && p.spr.visible).map(p => ({ x: p.spr.x, y: p.spr.y + 10 })));
+        return pc ? { ...pc, label: `시계탑 별 조각 줍기 (${GameState.item('towerPieces')}/3)` } : null;
+      }
+      return station();
+    }
+    // 이 지역 별(메인 퀘스트)을 켰으면 다음 지역으로. 서브 퀘스트(!)는 선택
+    if (this.mapId === 'shadow' && !GameState.flag('mq.shadow') && d.leader !== 'shiro' && d.party.includes('shiro'))
+      return { x: L.x, y: L.y, label: '너무 어두워! 시로(9)를 앞장세우면 길과 고양이가 보인다' };
+    const ep = this.things.find(t => t.spr.visible && t.mark.visible && t.mark.text === '♥');
+    if (GameState.flag(MQ_OF[this.mapId] ?? '-') && ep) return { x: ep.x, y: ep.y, label: `♥ ${t2s(ep.def.label) || '개인 에피소드'} (트루 엔딩에 필요)` };
+    if (GameState.flag(MQ_OF[this.mapId] ?? '-') && this.mapId !== 'lastsave') {
+      const st = station(); if (st) return { ...st, label: '이 지역 별 완료! 하늘 정류장 → 다음 지역 (! 표시는 선택 퀘스트)' };
+    }
+    const rank = (m: string) => (m === '!' || m === '✦' ? 0 : m === '?' ? 1 : m === '♥' ? 3 : 9);
+    const cands: { x: number; y: number; label: string; r: number }[] = [];
+    for (const t of this.things) {
+      if (!t.spr.visible || !t.mark.visible) continue;
+      const r = rank(t.mark.text); if (r < 9) cands.push({ x: t.x, y: t.y, label: t.tag.text || (typeof t.def.label === 'function' ? t.def.label() : t.def.label) || '조사하기', r });
+    }
+    for (const f of this.folks) {
+      if (!f.spr.visible || !f.mark.visible) continue;
+      const r = rank(f.mark.text); if (r < 9) cands.push({ x: f.x, y: f.y, label: `${f.tag.text || '주민'}에게 말 걸기`, r: MAIN_FOLK[this.mapId] === f.id ? -1 : r + 0.5 });
+    }
+    if (cands.length) {
+      const best = Math.min(...cands.map(c => c.r));
+      const c = nearest(cands.filter(x => x.r === best));
+      return { x: c.x, y: c.y, label: c.label };
+    }
+    return station();
+  }
+
+  /** 걷기(비용 1) + 능력 칸(비용 25)으로 최단 경로 */
+  private guideRoute(goal: { x: number; y: number }) {
+    const W = this.cols, H = this.rows, L = this.lead;
+    const sx = Math.floor(L.x / TILE), sy = Math.floor((L.y - 4) / TILE);
+    const gx = Math.floor(goal.x / TILE), gy = Math.floor((goal.y - 4) / TILE);
+    const party = GameState.data.party;
+    const abil = (t: string): CharId | null =>
+      t === ' ' ? (party.includes('rumung') ? 'rumung' : null) : t === 'X' ? (party.includes('dotcha') ? 'dotcha' : null)
+      : t === 'V' ? (party.includes('haming') ? 'haming' : null) : t === 'g' ? (party.includes('shiro') ? 'shiro' : null) : null;
+    const cost = new Float32Array(W * H).fill(Infinity), prev = new Int32Array(W * H).fill(-1);
+    const heap: [number, number][] = [];
+    const push = (c: number, i: number) => { heap.push([c, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let k = 0; for (;;) { const a = 2 * k + 1, b = a + 1; let m = k; if (a < heap.length && heap[a][0] < heap[m][0]) m = a; if (b < heap.length && heap[b][0] < heap[m][0]) m = b; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    const exact = !this.blocked(this.grid[gy]?.[gx] ?? '#');
+    const si = sy * W + sx; cost[si] = 0; push(0, si);
+    let end = -1;
+    while (heap.length) {
+      const [c, i] = pop(); if (c > cost[i]) continue;
+      const x = i % W, y = (i / W) | 0;
+      if (Math.abs(x - gx) + Math.abs(y - gy) <= (exact ? 0 : 1)) { end = i; break; }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const t = this.grid[ny][nx], ni = ny * W + nx;
+        let w = 1;
+        if (this.blocked(t) && !this.bridges.has(key(nx, ny))) { if (!abil(t)) continue; w = 25; }
+        if (c + w < cost[ni]) { cost[ni] = c + w; prev[ni] = i; push(c + w, ni); }
+      }
+    }
+    const path: Pt[] = [];
+    for (let i = end; i >= 0; i = prev[i]) path.push({ x: i % W, y: (i / W) | 0 });
+    path.reverse();
+    let need: { edge: Pt; tile: Pt; who: CharId } | null = null;
+    for (let k = 1; k < path.length; k++) {
+      const t = this.grid[path[k].y][path[k].x];
+      if (this.blocked(t) && !this.bridges.has(key(path[k].x, path[k].y))) { need = { edge: path[k - 1], tile: path[k], who: abil(t)! }; break; }
+    }
+    return { path, need };
+  }
+
+  private updateGuide(dt: number) {
+    this.guideT -= dt;
+    if (this.guideT > 0) return;
+    this.guideT = 0.35;
+    if (!this.guideG) this.guideG = this.add.graphics().setDepth(8500);
+    const g = this.guideG; g.clear();
+    const goal = this.guideTarget();
+    this.guideGoal = goal;
+    if (!goal || GameState.flag('opt.noguide')) { this.guidePath = []; this.guideNeed = null; Bus.emit('guide', null); return; }
+    const { path, need } = this.guideRoute(goal);
+    this.guidePath = path; this.guideNeed = need;
+    // 바닥에 발자국 점 (가까운 14칸)
+    const until = need ? path.findIndex(p => p.x === need.edge.x && p.y === need.edge.y) + 1 : path.length;
+    const pulse = (this.time.now / 350) % 1;
+    for (let k = 2; k < Math.min(until, 16); k += 2) {
+      const p = path[k], a = 0.95 - k * 0.04, r = k % 4 === Math.floor(pulse * 4) % 4 ? 6 : 5;
+      g.fillStyle(0x160f33, a * 0.6).fillCircle(p.x * TILE + 12, p.y * TILE + 15, r + 2);
+      g.fillStyle(0xffd66b, a).fillCircle(p.x * TILE + 12, p.y * TILE + 14, r);
+    }
+    if (need) { const e = need.edge, t = need.tile; g.fillStyle(0x7cf0c8, 0.28).fillRect(e.x * TILE, e.y * TILE, TILE, TILE).lineStyle(2, 0x7cf0c8, 1).strokeRect(e.x * TILE + 1, e.y * TILE + 1, TILE - 2, TILE - 2);
+      g.fillStyle(0x7cf0c8, 0.9).fillTriangle(t.x * TILE + 12 + (t.x - e.x) * 6, t.y * TILE + 12 + (t.y - e.y) * 6, t.x * TILE + 12 - (t.y - e.y) * 6, t.y * TILE + 12 - (t.x - e.x) * 6, t.x * TILE + 12 + (t.y - e.y) * 6, t.y * TILE + 12 + (t.x - e.x) * 6); }
+    // 화살표가 가리킬 곳: 능력이 필요하면 그 앞 칸, 아니면 목표
+    const aim = need ? { x: need.edge.x * TILE + 12, y: need.edge.y * TILE + 12 } : goal;
+    const cam = this.cameras.main, z = cam.zoom;
+    const sx = (aim.x - cam.worldView.x) * z, sy = (aim.y - cam.worldView.y) * z;
+    const lx = (this.lead.x - cam.worldView.x) * z, ly = (this.lead.y - 20 - cam.worldView.y) * z;
+    const c = need ? charById(need.who) : null;
+    const tip = need ? `${c!.name}(${CHAR_IDS.indexOf(need.who) + 1})의 ${c!.ability} — 표시된 칸에서 Space` : '';
+    Bus.emit('guide', { sx, sy, lx, ly, lift: need ? 30 : 74, label: goal.label, tip, far: Math.hypot(aim.x - this.lead.x, aim.y - this.lead.y) > 90 });
+  }
+
+  /** Space 한 번으로: 필요한 동료로 바꾸고 능력까지 쓴다 */
+  private autoAbility(): boolean {
+    const L = this.lead, d = GameState.data;
+    const tx = Math.floor(L.x / TILE), ty = Math.floor((L.y - 4) / TILE);
+    const use = (who: CharId, dir?: { x: number; y: number }) => {
+      if (!d.party.includes(who)) return false;
+      if (d.leader !== who) { this.switchTo(who); if (d.leader !== who) return true; }
+      if (dir) this.face = dir;
+      const nt = Math.floor(this.lead.x / TILE), nty = Math.floor((this.lead.y - 4) / TILE);
+      if (who === 'rumung') this.cloudStep(nt, nty);
+      else if (who === 'dotcha') this.dash(nt, nty);
+      else if (who === 'haming') this.bloom(nt, nty);
+      else if (who === 'shiro') toast('시로가 앞장섰다. 좁은 틈으로 걸어 들어가자.');
+      return true;
+    };
+    // 길 안내가 표시한 칸 위(또는 바로 옆)에 서 있으면
+    const n = this.guideNeed;
+    if (n && Math.abs(n.edge.x - tx) + Math.abs(n.edge.y - ty) <= 1) return use(n.who, { x: Math.sign(n.tile.x - n.edge.x), y: Math.sign(n.tile.y - n.edge.y) });
+    // 바라보는 칸
+    const fx = tx + this.face.x, fy = ty + this.face.y, ft = this.grid[fy]?.[fx];
+    if (ft === 'X') return use('dotcha');
+    if (ft === 'V') return use('haming');
+    if (ft === 'g') return use('shiro');
+    return false;
+  }
+
   // ---------- 루프 ----------
   update(_t: number, dms: number) {
     if (!this.live) return;
@@ -1281,6 +1476,7 @@ export class WorldScene extends Phaser.Scene {
 
     const busy = UIState.busy || this.lock;
     const L = this.lead;
+    this.updateGuide(dt);
     let moving = false;
     if (!busy) {
       if (Input.take('menu')) this.openMainMenu();
@@ -1330,7 +1526,7 @@ export class WorldScene extends Phaser.Scene {
       GameState.data.bugNotes.push(n.id); n.spr.destroy(); this.notes = this.notes.filter(x => x !== n);
       toast(n.text); Bus.emit('hud-refresh');
     }
-    for (const p of [...this.pickups]) if (Math.hypot(p.spr.x - L.x, p.spr.y - (L.y - 8)) < 22) {
+    for (const p of [...this.pickups]) if (Math.hypot(p.spr.x - L.x, p.spr.y - (L.y - 8)) < 28) {
       GameState.data.picked.push(p.id); p.spr.destroy(); this.pickups = this.pickups.filter(x => x !== p);
       Audio.sfx('get');
       if (p.kind === 'piece') { GameState.addItem('towerPieces'); const n = GameState.item('towerPieces'); toast(n >= 3 ? '시계탑 별 조각을 모두 모았다! 무너진 시계탑으로 가자.' : `시계탑 별 조각을 주웠다. (${n}/3)`); }
