@@ -420,7 +420,8 @@ export class WorldScene extends Phaser.Scene {
       this.lock = false; return;
     }
     const tf = feetOf(TOWER_SPOT);
-    if (!this.region && Math.hypot(L.x - tf.x, L.y - tf.y) < 60) return this.towerInteract();
+    // 시계탑: 기준점 근처뿐 아니라 시계탑 그림 앞(움푹 들어간 자리) 어디서든
+    if (!this.region && this.mapId === 'cloud' && (Math.hypot(L.x - tf.x, L.y - tf.y) < 72 || (Math.abs(L.x - tf.x) < 100 && L.y < tf.y + 10 && L.y > tf.y - 150))) return this.towerInteract();
     if (this.autoAbility()) return;
     const fx = Math.floor((L.x + this.face.x * 20) / TILE), fy = Math.floor((L.y - 6 + this.face.y * 20) / TILE);
     if (this.grid[fy]?.[fx] === 'X') return this.rockHint();
